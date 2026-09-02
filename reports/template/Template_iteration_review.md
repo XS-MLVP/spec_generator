@@ -56,3 +56,7 @@
 | 图源修改后可能沿用旧截图。 | SVG 与 Markdown 无关联校验。 | strict checker 比较每个 fence 的 source SHA-256、SVG SHA-256、数量和非空 `viewBox`。 | Sbuffer v2.0.0 的 3 张图 evidence 校验通过。 |
 
 模板结构版本由 v2.0.0 升为 v2.1.0。这是兼容增强：保留 v2 I/O schema，新增真实 Mermaid 渲染及 evidence 签核要求。
+
+## 2026-09-02 模板维护注释
+
+模板结构版本由 v2.1.0 升为 v2.1.1。该 Patch 不改变生成文档 schema，使用 HTML 注释补充版本、证据优先级、I/O Generated/Elided、Harness 参数、顶层 FSM、Mermaid、FG/FC/CK 和签核状态的维护规则。注释供模板开发者和生成器阅读，不进入 Markdown 渲染正文。

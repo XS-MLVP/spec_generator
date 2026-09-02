@@ -1,15 +1,45 @@
+# Operating systems
 .DS_Store
+Thumbs.db
+Desktop.ini
 
-# Reproducible local tool/bootstrap and RTL caches
+# Reproducible local tool/bootstrap and RTL caches. Versioned evidence belongs
+# under evidence/ and must not be ignored.
 .cache/
+.tmp/
+tmp/
 
-# Generated XiangShan build products stay inside the submodule and are not
-# part of this documentation repository.
+# XiangShan generated products stay inside the submodule.
 third_party/XiangShan/build/
+third_party/XiangShan/out/
 
-# Local editor and temporary files
-*.swp
-*.tmp
-*~
+# Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors and local IDE state
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+*~
+
+# Logs and local environment overrides
+*.log
+.env
+.env.*
+!.env.example

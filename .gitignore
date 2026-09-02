@@ -1,0 +1,15 @@
+.DS_Store
+
+# Reproducible local tool/bootstrap and RTL caches
+.cache/
+
+# Generated XiangShan build products stay inside the submodule and are not
+# part of this documentation repository.
+third_party/XiangShan/build/
+
+# Local editor and temporary files
+*.swp
+*.tmp
+*~
+__pycache__/
+*.py[cod]

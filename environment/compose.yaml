@@ -1,0 +1,15 @@
+services:
+  docs:
+    build:
+      context: ..
+      dockerfile: environment/Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+      - template-generate-cache:/workspace/.cache
+    environment:
+      TEMPLATE_GENERATE_CACHE: /workspace/.cache
+    command: sleep infinity
+
+volumes:
+  template-generate-cache:

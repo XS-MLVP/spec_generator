@@ -1,149 +1,62 @@
 # Contributing
 
-本指南主要面向共同维护和优化文档模板、OpenCode Skill 及其自动检查工具的开发者。使用现有工具生成某个模块文档，请直接阅读 [README.md](README.md) 的“为一个模块生成 Spec 文档”。
+本指南面向模板、OpenCode Skill 和工具维护者。生成模块文档请阅读 [README](README.md)。设计原则和证据模型见 [docs/design-and-evidence.md](docs/design-and-evidence.md)。
 
-## 维护对象
+## 修改范围
 
-| 对象 | 路径 | 职责 |
-| --- | --- | --- |
-| 文档模板 | `templates/chip-design-document/chip_design_document_template_zh.md` | 定义交付文档的章节、字段、表格和标签 schema。 |
-| OpenCode Skill | `.opencode/skills/xiangshan-design-document/SKILL.md` | 指导 AI 如何取证、生成、判断版本和完成质量门禁。 |
-| 文档检查器 | `tools/validate_document.py` | 检查单个模块版本的结构和 evidence。 |
-| 仓库检查器 | `tools/validate_repository.py` | 检查仓库自有 Markdown 链接、模板版本和 Skill 元数据；不扫描本地模块资产。 |
-| RTL/图形工具 | `tools/generate_rtl.sh`、`extract_rtl_evidence.py`、`validate_mermaid.py` | 产生可复现 evidence。 |
-| 模板迭代记录 | `reports/template/Template_iteration_review.md` | 记录问题、决策、模板版本和回归结果。 |
-
-模板规定“输出长什么样”，Skill 规定“AI 如何得到正确输出”，checker 负责“把关键规则变成强制门禁”。修改其中一个时，必须评估另外两个是否需要同步。
-
-## 不可破坏的契约
-
-- 实现事实的证据优先级保持为：matching elaborated RTL > Chisel/Scala > 配置 > 可选 spec > 显式推断。
-- 无法证实、来源冲突或疑似 RTL 缺陷必须登记为 `OPEN-*`，不能写成 FACT。
-- I/O 必须区分 Chisel 声明与当前配置的 `Generated`/`Elided` Verilog 结果。
-- 顶层状态机章节不能混入 entry 生命周期或子模块 FSM。
-- `FG-API` 只能包含 Assume，`FG-COVERAGE` 只能包含 Cover。
-- 每个 FC 必须在附录注册表中唯一出现，在 Test Plan 中关联至少一个独立 CK；主阅读路径不重复 FC/CK 双表。
-- Mermaid 必须真实渲染，并以 source/SVG hash 防止使用过期证据。
-- 本地历史文档和 evidence 不得在普通迭代中被覆盖；模块输入和产物不提交到工具仓库。
-- 不修改 XiangShan submodule 源码来迁就文档生成工具。
-
-## 模板版本
-
-模板顶部的 `模板结构版本` 与模块文档版本独立，使用 SemVer：
-
-| 增量 | 模板变化示例 |
+| 内容 | 路径 |
 | --- | --- |
-| Major | 删除/重命名必选章节，改变 FG/FC/CK 解析结构，修改表格到旧生成器无法兼容。 |
-| Minor | 增加兼容字段、条件章节或新的可选/必选检查要求。 |
-| Patch | 增加 HTML 维护注释、修正文案或示例，不改变输出 schema。 |
+| 文档模板 | `templates/chip-design-document/chip_design_document_template_zh.md` |
+| OpenCode Skill | `.opencode/skills/xiangshan-design-document/SKILL.md` |
+| 生成与检查工具 | `tools/`、`Makefile` |
+| 通用维护记录 | `reports/template/` |
+| 参考案例 | `references/` |
 
-升级模板版本时必须：
+模块级 `inputs/`、`outputs/`、`reports/<Module>/` 和 `evidence/` 是本地回归资产，不提交到仓库。
 
-1. 更新模板顶部 `模板结构版本`。
-2. 更新模板“附录 A：文档控制与范围裁定”中的 `使用模板版本` 示例。
-3. 在 `Template_iteration_review.md` 说明问题、改动、兼容性和回归结果。
-4. 判断已有模块是否需要生成新文档版本；不要追溯修改历史版本记录的模板号。
+## 修改规则
 
-## Skill 修改原则
+模板、Skill 和 checker 是同一协议的三个部分：模板定义输出，Skill 定义生成方法，checker 强制关键约束。修改任一部分时，检查另外两部分是否需要同步。
 
-Skill 必须说明可执行工作流，而不是重复模板全部正文。重点维护：
+- 新增模板字段或硬规则时，同步更新 Skill、checker 和模板版本。
+- 模板版本使用 SemVer：不兼容结构改动升 Major，兼容字段升 Minor，注释或措辞升 Patch。
+- 实现事实必须保持 `matching RTL > Chisel/Scala > 配置 > 可选 spec > 显式推断` 的证据顺序。
+- 不修改 XiangShan submodule 来迁就文档工具。
+- 不提交模块资产、缓存、凭据、私有路径或 IDE 状态。
+- 外部参考资料必须确认许可，并在 `references/README.md` 记录来源和用途。
 
-- 触发场景、仓库路径和完整交付物。
-- 证据优先级与冲突处理。
-- preflight、RTL elaboration、缓存和 evidence 规则。
-- 文档 SemVer 选择及禁止覆盖历史。
-- Bundle/I/O、参数、FSM、FG/FC/CK 和 case 的提取方法。
-- Mermaid 安全写法与真实渲染要求。
-- 质量报告内容、checker 命令和完成标准。
-
-新增模板硬规则时，应同步回答：
-
-1. Skill 是否告诉 AI 如何满足它？
-2. checker 是否能自动发现违反规则的情况？
-3. quality report 是否记录了对应结果或未运行项？
-
-修改 Skill 后需要重启 OpenCode，再进行真实生成回归。
+详细模板协议写在模板注释和 Skill 中，不在本指南重复。
 
 ## 开发流程
 
-### 1. 建立分支和基线
+1. 修改前运行仓库检查，记录已有问题。
+2. 做最小一致改动，并更新 `reports/template/Template_iteration_review.md`。
+3. 运行仓库和模板门禁。
+4. 若改动影响生成结果，使用本地模块生成一个新版本回归，不覆盖历史版本。
 
 ```bash
-git switch -c <topic-branch>
-make init
 make repo-lint
-```
-
-记录修改前的检查结果。不要把已有失败归因于本次改动。
-
-### 2. 做最小一致修改
-
-- 先修改模板，明确是 schema 变化还是说明变化。
-- 再同步 Skill 的生成步骤和完成标准。
-- 能自动检查的新规则应加入 checker，避免只依赖提示词。
-- 跨平台逻辑必须同时考虑 Linux/macOS 和 x86-64/ARM64。
-- 不提交 `.cache/`、XiangShan build、模块级 `inputs/outputs/reports/evidence`、凭据、私有路径或 IDE 状态。
-
-### 3. 验证模板与本地回归模块
-
-仓库不再保存 Sbuffer 或其他具体模块 fixture。至少验证模板和仓库；若本地已准备回归模块，再运行模块 lint：
-
-```bash
-# 模板自身 Mermaid 示例
 make template-check
-
-# 仓库级检查不读取被忽略的模块产物
-make repo-lint
-
-# 可选：使用本地模块资产做端到端回归
-make lint MODULE=<Module> VERSION=<version>
 git diff --check
 ```
 
-若改动会影响生成结果，应选择一个本地模块并使用新文档版本完整回归，不得改写旧版本。确认：
+可选的本地模块回归：
 
-- 本地设计文档、质量报告、VERSION_HISTORY 和 evidence 版本一致。
-- RTL commit/config/hash 未变化时，质量报告明确说明。
-- FG/FC/CK 的新增、删除或语义变化符合所选文档版本。
-- 所有 Mermaid SVG 可渲染且 source hash 最新。
-- XiangShan submodule 保持 clean。
-
-### 4. 更新迭代记录
-
-在 `reports/template/Template_iteration_review.md` 记录：
-
-- 原问题和可复现方式。
-- 模板、Skill、工具分别如何处理。
-- 模板版本及兼容性判断。
-- 使用了哪些回归模块和命令。
-- 尚未覆盖的风险。
-
-## Pull Request 要求
-
-PR 应聚焦一个模板或 Skill 问题，并说明：
-
-- 修改动机及失败示例。
-- 模板版本变化及 SemVer 理由。
-- 模板、Skill、checker 是否同步；未同步时说明原因。
-- 对已有文档和 UCAgent 解析的兼容性影响。
-- Linux/macOS 相关影响。
-- 回归命令和实际结果。
-- 是否在本地生成并验证了新的模块回归文档/evidence；这些产物不附在 PR 中。
-
-使用仓库 PR 模板，并确保：
-
-- `git diff --check` 通过。
-- 模板 Mermaid 示例实际渲染成功。
-- `make repo-lint` 和 `make template-check` 通过。
-- 若有本地模块回归资产，`make lint MODULE=<Module> VERSION=<version>` 通过。
-- 模块输入/输出/evidence、敏感信息、缓存和 submodule build 未进入提交。
-
-## 提交信息
-
-使用简洁的祈使句描述维护动作，例如：
-
-```text
-Clarify formal harness guidance
-Add Mermaid rendering validation
-Update template I/O mapping schema
+```bash
+make preflight MODULE=<Module> CONFIG=<Config>
+make lint MODULE=<Module> VERSION=<version>
 ```
+
+修改 Skill 后，重启 OpenCode 再做生成回归。
+
+## 提交检查
+
+提交前确认：
+
+- `make repo-lint` 和 `make template-check` 通过。
+- 模板版本及附录中的版本示例一致。
+- 模板、Skill、checker 和维护记录已同步。
+- 本地模块回归产物未进入暂存区。
+- `git diff --cached --check` 通过。
+
+提交信息使用简洁的祈使句，例如 `Clarify coverage sampling guidance`。

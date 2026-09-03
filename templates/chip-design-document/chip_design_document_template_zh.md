@@ -1,53 +1,322 @@
 # [DUT 名称] 设计与功能检测点文档
 
-<!-- MAINTAINER: 模板结构版本描述“字段和章节协议”，不是某个 DUT 文档的版本。兼容的注释、措辞或校验增强递增 PATCH；新增兼容字段递增 MINOR；破坏现有生成器/解析器的结构变化递增 MAJOR。 -->
-> 模板结构版本：v2.1.1
+<!-- MAINTAINER: 模板结构版本描述字段和章节协议，不是 DUT 文档版本。注释/措辞增强递增 PATCH；新增兼容字段递增 MINOR；破坏解析器或章节协议递增 MAJOR。 -->
+> 模板结构版本：v3.1.1
 >
 > 文档版本：[vMAJOR.MINOR.PATCH]
 >
-> 本模板兼容 UCAgent 的功能点、检测点与 SVA 生成流程。文档中的 FG、FC、CK 标签必须使用反引号包裹，例如 `` `<FG-API>` ``，以保证 Markdown 可见；解析器读取时应去除反引号。未能由规格、Scala 源码、elaborated Verilog 或 RTL 证实的内容登记为 `OPEN-*`，不得猜测为已实现行为。
+> 本文分为正文、验证计划和附录。正文用于连续理解设计，验证计划用于安排检查，附录用于审计和签核。FG、FC、CK 标签必须使用反引号包裹，例如 `` `<FG-API>` ``。无法证实的内容登记为 `OPEN-*`。
 
-<!-- MAINTAINER: “文档范围裁定”是防止生成器静默删除条件章节的总开关。新增条件章节时，必须同时更新下面两张表、签核清单和 Skill 的静态检查规则。 -->
-## 文档范围裁定
+## 第一部分：正文
 
-| 文档项 | 必选性 | 保留条件 | 最低要求 |
+<!-- GENERATOR: 方括号占位内容必须替换或删除，不得原样进入交付文档。正文以短段落、小图和伪代码为主；仅在需要横向比较时使用表格。正文证据统一引用 [E-*]，不得铺开 path:line 或扁平 RTL 端口。 -->
+
+### 文档摘要
+
+<!-- GENERATOR: 摘要应可独立阅读且控制在约一页。保留以下七个粗体字段；每项只写结论，不复制正文、端口表或证据索引。无 OPEN 时明确写“无”。 -->
+> 本节目标是一页内建立阅读者的整体模型。每项先给结论，不展开实现细节或证据路径。
+
+**模块职责**
+
+[用一段话说明 DUT 在系统中的位置、完成的核心变换以及明确不负责的事情。]
+
+**输入与生产者**
+
+- `[逻辑输入]`：由[生产者]提供，用于[目的]。
+- `[控制事件]`：由[控制模块]产生，用于[目的]。
+
+**输出与消费者**
+
+- `[逻辑输出]`：由[消费者]接收，用于[目的]。
+- `[完成 / 状态]`：由[观察者]消费，用于[目的]。
+
+**关键概念**
+
+- **[概念 A]**：[一句话定义]。它与 **[概念 B]** 的区别是[关键区别]。
+- **[结构 A]**：[一句话定义]。它位于数据流的[阶段]。
+
+**关键延迟与容量**
+
+- 典型延迟：[N cycle / 组合路径 / 可变延迟及来源]。
+- 吞吐与容量：[每周期带宽、entry 数、最大在途数]。
+
+**验证范围**
+
+[说明本版本验证哪些功能、边界与恢复路径，以及明确不覆盖的内容。]
+
+**开放项**
+
+[列出阻塞理解或签核的 `OPEN-*`；若没有，写“无”。详情见附录 E。]
+
+### 设计概览
+
+#### 上下游与逻辑接口
+
+<!-- GENERATOR: 逻辑名是正文稳定词汇，不是 Chisel 路径缩写。每个逻辑名必须在附录 B 映射；同一对象不得在不同章节使用不同逻辑名。 -->
+[先用短段落说明谁产生数据、谁消费数据以及控制事件从哪里介入。正文只使用下列逻辑名；精确映射见附录 B。]
+
+| 逻辑名 | 角色与含义 | 方向 | 事务阶段 |
 | --- | --- | --- | --- |
-| 文档控制、FACT/OPEN | 必选 | 所有 DUT | 基线、配置、事实和待确认项。 |
-| I/O 定义 | 必选 | 所有 DUT | Chisel 顶层 Bundle、对象路径、子 Bundle class、精确 elaborated Verilog 端口逐层映射。 |
-| 参数定义 | 必选 | 所有 DUT | 独立章节；参数类型、默认值/范围、作用和 Scala 定义位置。 |
-| 顶层状态机 | 条件必选 | DUT 有顶层 FSM | 独立章节；只列顶层 FSM，状态表和状态图同节。 |
-| 微架构图 | 必选 | 所有 DUT | 使用 Mermaid `subgraph` 标识 DUT 边界，边界交互与 I/O 表对应。 |
-| 形式化建模与属性契约 | 必选 | 所有 DUT | 时钟、复位、观测点、延迟来源和 frame condition。 |
-| API / Coverage | 必选 | 所有 DUT | 合法环境假设以及正常、边界、恢复/错误路径 Cover。 |
-| 多模块事务/异常/冲刷 | 条件必选 | 事务跨模块，或存在 redirect/flush/rollback | 发起、路径、完成/取消、优先级和同步状态。 |
-| 符号化存储检查 | 条件必选 | 含队列、表、SRAM、Cache 或多 entry 状态 | 数据完整性和非目标稳定性检查。 |
-| 缓存查找/缺失/重填 | 条件必选 | 管理 hit/miss、MSHR、refill 或 replacement | lookup、分配/合并、victim、refill/cancel 语义。 |
-| 异常/恢复/flush | 条件必选 | 存在错误、replay、redirect、flush、取消或背压 | 优先级、恢复、frame condition 和 response race。 |
-| 特性门控 | 条件必选 | 参数、CSR、宏或 generate 启停可观察功能 | enable 行为和 disable 无副作用。 |
-| 场景案例附录 | 必选 | 所有 DUT | 以 user story 形式覆盖正常、边界和恢复场景。 |
+| `producer.data` | [生产者提供的数据] | 生产者 -> DUT | [输入 / 查询 / 写入] |
+| `consumer.result` | [消费者接收的结果] | DUT -> 消费者 | [响应 / 输出 / 完成] |
+| `control.flush` | [控制事件] | 控制模块 -> DUT | [取消 / 恢复] |
 
-| 条件项目 | 裁定：已应用 / 不适用 | 理由或对应章节 |
-| --- | --- | --- |
-| 多模块事务/异常/冲刷 | [裁定] | [理由 / 章节] |
-| 符号化存储检查 | [裁定] | [理由 / 章节] |
-| 缓存查找/缺失/重填 | [裁定] | [理由 / 章节] |
-| 异常/恢复/flush | [裁定] | [理由 / 章节] |
-| 特性门控 | [裁定] | [理由 / 章节] |
-| 顶层状态机 | [裁定] | [理由 / 章节] |
-| 事务时序图 | [裁定] | [理由 / 章节] |
+#### 微架构与数据流
 
-<!-- GENERATOR: 本节是文档可复现性的根记录。commit、配置、工具版本、RTL/图形 evidence 必须彼此对应；不能混用其他 commit 或配置的生成产物。 -->
-## 文档控制与依据
+<!-- GENERATOR: 必须保留 DUT subgraph。跨边界边使用逻辑名，内部节点使用功能名；不得在图中放置精确数组下标、通配符或端口清单。 -->
+```mermaid
+flowchart LR
+    P[Producer]
+    C[Consumer]
+    CTRL[Control peer]
+    subgraph DUT["DUT: [名称]"]
+        IN[Ingress]
+        CORE[Transform or storage]
+        OUT[Selection and egress]
+        IN -->|accepted item| CORE
+        CORE -->|eligible result| OUT
+    end
+    P -->|producer data| IN
+    OUT -->|consumer result| C
+    CTRL -.->|flush or recovery| CORE
+```
 
+[用一段话沿图说明正常数据流，再用一段话指出背压、冲刷、重放或错误恢复从哪个阶段介入。]
+
+#### 事务模型
+
+<!-- CONDITIONAL: 五阶段文字模型必选。仅当事务跨模块、有多周期响应，或存在 replay/flush/cancel 竞争时增加 sequenceDiagram；不适用时保留一句理由。 -->
+1. **产生**：[生产者准备什么，事务何时有效。]
+2. **接收**：[DUT 何时接受，不能接受时发生什么。]
+3. **处理**：[数据经过哪些抽象阶段，不展开通道实例。]
+4. **消费**：[消费者如何确认结果或完成。]
+5. **恢复**：[取消、flush、replay 或错误如何终止或重启事务。]
+
+[事务跨模块或存在竞争时，补充使用逻辑名的 Mermaid `sequenceDiagram`；否则说明不适用。]
+
+#### 实例能力矩阵
+
+<!-- GENERATOR: 行表示“行为相同的一类实例”，不是每个叶端口。列只描述模块特有的能力维度；删除不适用的示例能力。实例对象和 RTL 端口只放附录 C。 -->
+> 模块级统一规则不在本表重复。本表只回答各通道、端口组、bank、pipe 或 entry 类别具备哪些能力，以及默认配置下是否存在。
+
+| 实例类别 | 数量 / 索引 | 输入类别 | 输出类别 | 可选能力 | 默认配置状态 | 差异对应规则 |
+| --- | --- | --- | --- | --- | --- | --- |
+| [通用类别] | [范围] | [逻辑输入] | [逻辑输出] | Forward / Bypass / Cache / Immediate / Recovery / N/A | Enabled / Elided | [`P-*`] |
+
+### 功能行为
+
+> 按数据路径顺序组织。每节先定义模块级统一机制，再引用实例能力矩阵说明适用范围。每节只回答：做什么、输入是什么、输出是什么、延迟多少、边界是什么。
+
+<!-- GENERATOR: 为每项独立行为复制以下 P-* 小节，并删除本示例。P-* 标题是该行为唯一权威定义位置；ID 在同一 DUT 的后续版本中保持稳定。规则优先用公式或伪代码表达，正文证据只引用已在附录 D 定义的 [E-*]。 -->
+
+#### `P-[NAME]`：[统一行为名称]
+
+[用一至两段解释该机制解决什么问题，以及它在整体数据流中的位置。不要混入具体实例清单、完整端口名或配置裁剪细节。] [E-BEH-01]
+
+**输入**：[`logical.input`，以及有效条件。]
+
+**输出**：[`logical.output`，以及对资源或状态的影响。]
+
+**延迟**：[组合 / 固定 N 周期 / 可变延迟及界限来源。]
+
+```text
+# 伪代码表达可执行语义，不照抄 Chisel；名称使用逻辑名。
+eligible = input.valid && resource.available
+result   = select_by_priority(candidates)
+next     = eligible ? update(current, input) : current
+```
+
+**适用实例**：[引用“实例能力矩阵”的类别，不逐个复述实例特例。]
+
+**边界与限制**
+
+- [背压、优先级、同时事件、非目标稳定性。]
+- [参数或特性关闭时的行为。]
+- [异常、冲刷、重放或错误恢复。]
+
+**证据**：[E-BEH-01]。完整源码与 RTL 定位见附录 D。
+
+### 关键结构与状态
+
+#### 资源生命周期
+
+<!-- GENERATOR: 只写影响功能理解的资源及其分配、更新、消费、释放过程。容量和逐实例配置放附录 C；子模块内部状态不得冒充 DUT 顶层状态。 -->
+[用短段落描述关键队列、阵列、表项或缓存从分配到释放的生命周期。复杂生命周期使用小图；规模和配置详情引用附录 C。] [E-RES-01]
+
+#### 顶层状态机
+
+<!-- CONDITIONAL: DUT 无顶层 FSM 时删除示例状态图和状态语义，但必须保留“不适用”结论及 [E-*] 依据。多个独立顶层 FSM 分图描述，不得强行合并。 -->
+> 仅描述 DUT 顶层控制状态机。entry 生命周期和子模块 FSM 不提升为顶层状态。
+
+[先用一段话解释为何需要这些状态以及状态如何影响事务。若无顶层 FSM，明确写“不适用”并引用证据。]
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE: reset release
+    IDLE --> ACTIVE: request accepted
+    ACTIVE --> IDLE: transaction complete
+```
+
+**状态语义**
+
+- `IDLE`：[进入、退出和输出限制，遵循 `P-*`。]
+- `ACTIVE`：[进入、退出和同时事件优先级，遵循 `P-*`。]
+
+**边界与限制**
+
+[说明 reset 入口、非法状态、同时事件优先级和外部可见限制。] [E-FSM-01]
+
+## 第二部分：验证计划
+
+### 验证策略
+
+<!-- GENERATOR: 按风险解释“为什么这样验证”，不列 CK 明细，也不重复 P-* 机制。验证机制必须与 Test Plan 中实际计划一致。 -->
+[用短段落说明主要风险、检查机制及为何采用 assertion、scoreboard、reference model、symbolic 或 simulation。不要重复功能原理。]
+
+**优先级原则**
+
+- `P0`：可能导致数据错误、顺序错误、死锁或错误恢复失败。
+- `P1`：边界、竞争、配置或性能契约错误。
+- `P2`：可观测性、统计或非关键覆盖缺口。
+
+### 功能分组
+
+<!-- GENERATOR: 标签树中的每个 FC 必须在附录 F 唯一定义，并至少对应一条 Test Plan。FG 标签保持独立行和反引号格式，以兼容解析器。 -->
+```text
+DUT
+|- FG-API
+|  `- FC-INPUT-CONTRACT
+|- FG-CORE
+|  `- FC-BEHAVIOR
+`- FG-COVERAGE
+   `- FC-REACHABILITY
+```
+
+`<FG-API>`
+
+[验证环境边界；只约束 DUT 输入，不假设 DUT 输出正确。]
+
+`<FG-CORE>`
+
+[核心行为、边界、优先级和恢复风险。]
+
+`<FG-COVERAGE>`
+
+[正常、边界和恢复路径的可达性；本组 CK 只使用 Cover。]
+
+### Test Plan
+
+<!-- GENERATOR: 每行只绑定一个 CK；同一 CK 的 FC、Style 必须与附录 F 一致。触发与结果使用逻辑名，行为机制引用 P-*，源码依据引用附录 D，不在单元格中重写设计原理。 -->
+> 这是验证执行的统一入口。每行连接一个 FC、一个独立 CK、验证机制、Coverage 和场景。功能原理只引用 `P-*`，完整 CK 元数据见附录 F。
+
+| 优先级 | FC | CK | Style | 关联规则 | 检查机制 | 激励 / 前置条件 | 可观察结果 | Coverage / 场景 | 关闭标准 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P0 | `FC-INPUT-CONTRACT` | `CK-API-INPUT-KNOWN` | Assume | `P-[NAME]` | Assertion | [合法输入条件] | [逻辑观测点] | `COV-NORMAL` / `CASE-NORMAL` | [编译且 prove 通过] |
+| P0 | `FC-BEHAVIOR` | `CK-EVENT-RESULT` | Seq | `P-[NAME]` | Assertion + Scoreboard | [事务触发] | [结果与帧条件] | `COV-NORMAL` / `CASE-NORMAL` | [prove / regression 通过] |
+| P1 | `FC-REACHABILITY` | `CK-COVER-BOUNDARY` | Cover | `P-[NAME]` | Cover | [边界激励] | [目标状态可达] | `COV-BOUNDARY` / `CASE-BOUNDARY` | [cover hit] |
+
+### Coverage Summary
+
+<!-- GENERATOR: Coverage 是风险闭环，不是 CK 的重复清单。每行给出可采样条件和可判定关闭标准；未实际运行时状态不得写 Closed。 -->
+| Coverage ID | 风险与目标 | 关联 P / FC / CK | 采样或交叉条件 | 关闭标准 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| `COV-NORMAL` | [正常数据流可达] | [`P-*`, `FC-*`, `CK-*`] | [条件] | [命中要求] | Planned |
+| `COV-BOUNDARY` | [资源边界或竞争可达] | [`P-*`, `FC-*`, `CK-*`] | [条件] | [命中要求] | Planned |
+| `COV-RECOVERY` | [异常或恢复路径可达] | [`P-*`, `FC-*`, `CK-*`] | [条件] | [命中要求] | Planned |
+
+### 形式化属性契约
+
+<!-- GENERATOR: 以下代码是结构示例，不是可直接交付的 SVA。生成文档必须替换逻辑占位符；若尚无 harness 映射，写伪代码并登记 OPEN-VERIFY，禁止伪称已编译。 -->
+> 本节集中定义时钟、复位、history-valid、X 处理、Assume、Assert 和 Cover。属性公式引用逻辑名及 `P-*`；精确 RTL/bind 映射见附录 B、D、F。
+
+**建模约定**
+
+- 时钟与复位：[时钟、复位极性、复位期间屏蔽策略]。
+- History-valid：[何时允许使用 `$past`，首个有效历史周期如何处理]。
+- X 处理：[哪些输入由 Assume 约束，哪些 DUT 输出由 Assert 检查]。
+- 公平性与界限：[liveness、公平性、可变延迟及审批来源]。
+- 符号化观测：[索引范围、目标 entry 与非目标稳定性。]
+
+#### Assume
+
+```systemverilog
+// <CK-API-INPUT-KNOWN>, references P-[NAME]
+assume property (@(posedge clock) disable iff (reset) logical_input_valid |-> !$isunknown(logical_input));
+```
+
+#### Assert
+
+```systemverilog
+// <CK-EVENT-RESULT>, references P-[NAME]
+assert property (@(posedge clock) disable iff (reset) history_valid && trigger |=> expected_result);
+```
+
+#### Cover
+
+```systemverilog
+// <CK-COVER-BOUNDARY>, references P-[NAME]
+cover property (@(posedge clock) disable iff (reset) boundary_precondition ##1 boundary_result);
+```
+
+### 测试场景
+
+<!-- GENERATOR: 正常、资源边界、异常/恢复至少各一例。每例只描述动作、阶段结果和验收标准；不复制 P-* 算法。DUT 无异常入口时以合法恢复或不适用裁定替代，不虚构故障。 -->
+> 至少覆盖正常、资源边界和异常/恢复。场景只描述参与者动作、阶段结果和验收标准，不重复 `P-*` 的算法。
+
+#### CASE-NORMAL：[正常场景]
+
+**目标**：[端到端正常事务。]
+
+**参与者与前置条件**：[生产者、DUT、消费者；初始状态。]
+
+1. [生产者执行动作。]
+2. [DUT 到达某阶段。]
+3. [消费者完成事务。]
+
+**预期行为**：遵循 `P-[NAME]`、`CK-EVENT-RESULT`；关联 Coverage：`COV-NORMAL`。
+
+**验收标准**：[可判定结果及 Coverage 状态。]
+
+#### CASE-BOUNDARY：[资源边界场景]
+
+[使用相同结构，覆盖满/空、背压、同周期竞争或最大并发。]
+
+**预期行为**：遵循 `P-[NAME]`、`CK-COVER-BOUNDARY`；关联 Coverage：`COV-BOUNDARY`。
+
+**验收标准**：[可判定结果。]
+
+#### CASE-RECOVERY：[异常或恢复场景]
+
+[使用相同结构，覆盖 flush、replay、cancel、error 或明确说明 DUT 不支持的恢复类型。]
+
+**预期行为**：遵循 `P-[NAME]`、`CK-[RECOVERY]`；关联 Coverage：`COV-RECOVERY`。
+
+**验收标准**：[可判定结果。]
+
+### 签核与开放项
+
+<!-- GENERATOR: 本节只给决策所需的当前状态。详细证据和历史放附录；只有 evidence、checker、属性编译和对应回归真实通过后才能关闭相应项。 -->
+**当前状态**：[Draft / Review / Frozen。]
+
+**规格偏差**：[列出 spec 与实现差异的 `OPEN-*`，不在此重述证据。]
+
+**当前阻塞**：[未完成的 elaboration、UCAgent、属性编译、prove、cover 或 regression。]
+
+**关闭条件**：[逐项写出可执行且可判定的关闭条件。]
+
+## 第三部分：附录
+
+### 附录 A：文档控制与范围裁定
+
+<!-- GENERATOR: commit、配置、工具版本、RTL evidence 和图形 evidence 必须来自同一生成版本。条件项不可静默删除，必须写“已应用”或“不适用”及理由。 -->
 | 项目 | 内容 |
 | --- | --- |
 | 文档版本 | [vMAJOR.MINOR.PATCH] |
-| 使用模板版本 | v2.1.1 |
+| 使用模板版本 | v3.1.1 |
 | 前一版本 | [版本及相对链接 / None（首次版本）] |
 | 版本变更类型 | [Major / Minor / Patch：原因] |
-| 所属项目 / 子系统 | [SoC / Core / Cache] |
-| DUT / Chisel 顶层 | [名称] / [`repo:path:line`] |
-| Elaborated Verilog 顶层 | [module 名 / `repo:path`] |
+| DUT / Chisel 顶层 | [名称] / [E-TOP-01] |
+| Elaborated Verilog 顶层 | [module 名] / [E-RTL-01] |
 | 文档状态 | Draft / Review / Frozen |
 | XiangShan RTL 基线 | [完整 `commit`] |
 | 适用配置 | [参数集、特性开关] |
@@ -58,250 +327,91 @@
 | 作者 / 评审人 | [团队 / 角色] |
 | 生成日期 | [YYYY-MM-DD] |
 
-<!-- MAINTAINER: FACT 表示证据已闭合的实现事实；OPEN 表示缺失证据、规格冲突或疑似 RTL 问题。不要用较低优先级 spec 覆盖较高优先级的 elaborated RTL/Scala 事实。 -->
-| ID | 结论或待确认项 | 依据 | 置信度 | 状态 |
-| --- | --- | --- | --- | --- |
-| FACT-[000] | [已确认事实] | [`path:line`] | 已确认 | Closed |
-| OPEN-[000] | [待确认问题] | [缺失或冲突] | 待确认 | Open |
+| 条件项目 | 已应用 / 不适用 | 理由或对应章节 |
+| --- | --- | --- |
+| 顶层状态机 | [裁定] | [理由 / 章节] |
+| 多模块事务 / 时序图 | [裁定] | [理由 / 章节] |
+| 符号化存储检查 | [裁定] | [理由 / 章节] |
+| 缓存查找 / 缺失 / 重填 | [裁定] | [理由 / 章节] |
+| 异常 / 恢复 / flush | [裁定] | [理由 / 章节] |
+| 特性门控 | [裁定] | [理由 / 章节] |
 
-## DUT 整体功能描述
+### 附录 B：逻辑接口与 RTL 映射
 
-### 职责、边界与性能
+<!-- GENERATOR: Generated 端口必须存在于同版本 ports.csv；Elided 必须保留 Chisel 定义并说明裁剪依据；无 matching elaboration 时填写 OPEN-IO-*，禁止按命名惯例猜测。规则数组必须注明实际索引范围。 -->
+> 本附录是逻辑名、Chisel 字段和精确 elaborated Verilog 端口的唯一映射位置。
 
-[说明 DUT 的系统位置、核心变换、明确非目标、带宽、延迟和最大并发度。]
+| IO-ID | 正文逻辑名 | Bundle class / Chisel 字段 | 定义位置 | 方向 / 位宽 | 配置状态 | 精确 Verilog I/O | 协议 / 对端 | 证据 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `IO-INPUT-VALID` | `producer.data.valid` | `[Bundle]` / `io.input.valid` | [E-IO-01] | I / 1 | Generated | `io_input_valid` | valid-ready / [模块] | [E-RTL-01] |
+| `IO-INPUT-BITS` | `producer.data.bits` | `[Bundle]` / `io.input.bits` | [E-IO-02] | I / [N] | Elided / OPEN | [未生成 / `OPEN-IO-*`] | [协议] | [E-CONFIG-01] |
 
-<!-- MAINTAINER: I/O 分成 Chisel 声明层和指定配置的 Verilog 实现层。Chisel 字段存在不代表该字段一定出现在最终 Verilog；配置关闭、常量传播或 dead-port elimination 都可能使其 Elided。 -->
-## I/O 定义
+规则数组可使用 `[i]`，但必须给出实际连续索引范围。没有 matching elaboration 时必须使用 `OPEN-IO-*`，不得猜测 RTL 名称。
 
-> Verilog I/O 必须来自指定配置的 elaborated Verilog，不得根据 Chisel 对象名猜测。一个 Chisel object 展开为多个 Verilog 端口时，应逐项列全。若当前没有 elaborated Verilog，Verilog 列填写 `OPEN-IO-*`，并在文档控制表登记，不能填写“推测名称”。
+### 附录 C：参数、实例与配置裁剪
 
-### 顶层 IO Bundle
-
-<!-- GENERATOR: 若顶层使用 IO(new Bundle { ... })，Bundle class 必须写成 anonymous Bundle in <Class>.io，禁止为方便阅读而虚构 <Class>IO。Flipped 后的最终方向应在逐项表中展开。 -->
-| 层级 | Bundle class | Chisel 对象 | Scala 定义位置 | 说明 |
-| --- | --- | --- | --- | --- |
-| 顶层 | `[DutIO]` | `io: [DutIO]` | [`path:line`] | [顶层 IO Bundle] |
-| 子 Bundle | `[EnqBundle]` | `io.enq[x]: [EnqBundle]` | [`path:line`] | [数组长度和用途] |
-
-### Chisel / Verilog 逐项映射
-
-<!-- GENERATOR: “Generated”必须能在同版本 ports.csv/RTL 中找到；“Elided”必须保留 Chisel 定义并解释裁剪原因；没有 matching elaboration 时使用 OPEN-IO-*，不得按命名惯例猜 Verilog 端口。规则数组可以用 [i] 表示，但必须注明实际连续索引范围。 -->
-| Bundle class | Chisel 对象 / 字段 | Chisel 存在 | 方向 | Chisel 类型 / 位宽 | 当前配置生成状态 | 精确 Verilog I/O | Verilog 位宽 | 裁剪 / 生成依据 | 协议 / 对端 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `[EnqBundle]` | `io.enq[x].valid` | 是 | I | `Bool` | Generated | `io_enq_[x]_valid` | 1 | [manifest / RTL line] | [valid/ready / 模块] |
-| `[EnqBundle]` | `io.enq[x].bits.[field]` | 是 | I | `[UInt(...)]` | Elided / OPEN | [未生成 / `OPEN-IO-*`] | 0 / [N] | [feature disabled / constant-folded / artifact missing] | [采样条件 / 模块] |
-
-### 接口字段与响应关联
-
-<!-- MAINTAINER: 本表描述跨周期协议契约，而不是重复端口表。重点记录事务 ID、请求/响应配对、背压稳定性、顺序和延迟来源。 -->
-| Chisel 接口 | Verilog 端口组 | 关键字段 / ID | 请求与响应关联 | payload 稳定性 | 延迟 / 顺序约束 |
-| --- | --- | --- | --- | --- | --- |
-| [`io.req/resp`] | [精确前缀及端口] | [字段] | [ID / FIFO / 无响应] | [规则] | [规则] |
-
-## 参数定义
-
-> 本节只列 elaboration/runtime 参数，不混入 entry 状态、队列或形式化 harness 参数。Scala 定义位置必须指向参数的声明或配置键；使用位置可另列。
-
-<!-- GENERATOR: 默认值必须对应“文档控制与依据”中的适用配置。派生常量要保留表达式及来源；同名参数在不同 Config 中被覆盖时，记录最终生效值和覆盖位置。 -->
-| 参数 | Scala 类型 | 默认值 / 合法范围 | Scala 定义位置 | 主要使用位置 | 生效时机 | 功能影响 |
+<!-- GENERATOR: 参数表只收录 elaboration/runtime 参数和派生常量，不收录队列、寄存器或状态值。实例表负责具体对象和配置差异，不在此重新定义 P-*。 -->
+| 参数 / 特性 | 类型与范围 | 当前值 | 定义 / 覆盖位置 | 功能影响 | 生成 / 裁剪结果 | 关联规则 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `[Param]` | `[Int/Boolean/...]` | [值 / OPEN] | [`path:line`] | [`path:line`] | elaboration / runtime | [说明] |
+| `[Param]` | `[Int/Boolean/...]` | [值 / OPEN] | [E-PARAM-01] | [影响] | [结构或端口] | [`P-*`] |
 
-### 形式化 Harness 参数
+| 实例 / 通道 | 类别 | 当前配置能力 | 被裁剪能力 | Chisel 对象 | RTL 端口组 | 证据 |
+| --- | --- | --- | --- | --- | --- | --- |
+| [实例范围] | [实例能力矩阵类别] | [能力] | [能力] | [对象] | [端口模式] | [E-CONFIG-02] |
 
-<!-- MAINTAINER: Harness 参数属于 DUT 外部的验证环境，不会改变硬件。它们用于公平性界限、liveness 深度、未知但受控的协议延迟或符号化观测。DUT 的 Scala 参数、CSR、寄存器和派生常量不得放入本表。 -->
-<!-- GENERATOR: 每个 bound 必须给出协议/RTL/DV 批准的来源；来源未知时关联 OPEN-*。不得为了让属性通过而任意放宽或缩小界限。fv_idx、fv_mon_* 等无数值配置的对象应称为 harness 信号/观测点，而非参数。 -->
-| 参数 | 范围 | 来源 / OPEN | 用途 |
-| --- | --- | --- | --- |
-| `[WRITE_LATENCY]` | [N] | [`OPEN-*`] | [请求到状态可观察更新的延迟] |
+### 附录 D：证据索引
 
-## 顶层状态机
+<!-- GENERATOR: 每个 E-ID 唯一且可定位；记录完整 repository-relative path:line、commit/config 和支持对象。证据发生变化时更新索引，不在正文复制路径。 -->
+> 正文只出现 `[E-*]`。源码路径、行号、commit、配置和 RTL 定位在此展开。
 
-> 仅描述 DUT 顶层控制状态机。entry 生命周期、子模块内部 FSM 和协议临时状态不得混入本表；它们应在资源或 FC 描述中说明。若无顶层 FSM，明确写“不适用”及依据。
+| Evidence ID | 类型 | 路径 / 定位 | Commit / 配置 | 支持内容 |
+| --- | --- | --- | --- | --- |
+| E-BEH-01 | Scala | [`path:line`] | [commit / config] | [`P-*`] |
+| E-RES-01 | Scala | [`path:line`] | [commit / config] | [资源生命周期] |
+| E-FSM-01 | Scala / RTL | [`path:line`] | [commit / config] | [顶层状态机] |
+| E-TOP-01 | Scala | [`path:line`] | [commit / config] | [DUT 顶层] |
+| E-RTL-01 | RTL / manifest / ports.csv | [`path:line`] | [commit / config] | [`IO-*`, `P-*`] |
+| E-IO-01 | Scala Bundle | [`path:line`] | [commit / config] | [`IO-INPUT-VALID`] |
+| E-IO-02 | Scala Bundle | [`path:line`] | [commit / config] | [`IO-INPUT-BITS`] |
+| E-PARAM-01 | Scala / Config | [`path:line`] | [commit / config] | [参数] |
+| E-CONFIG-01 | Config / RTL | [`path:line`] | [commit / config] | [端口裁剪] |
+| E-CONFIG-02 | Config / RTL | [`path:line`] | [commit / config] | [实例能力] |
 
-<!-- GENERATOR: 状态表与紧随其后的状态图必须来自同一状态寄存器和编码定义，并覆盖 reset 入口、全部退出条件及同周期事件优先级。多个独立 FSM 不得强行合并成一个图。 -->
-| 状态 | 编码 / Scala 定义 | 含义 | 进入条件 | 退出条件 | 输出 / 限制 |
+### 附录 E：FACT、OPEN 与偏差
+
+<!-- GENERATOR: FACT 说明证据支持关系，OPEN 说明缺口和关闭条件；两者都引用 P-* 和 E-*，不形成第二份行为定义。规格与 RTL 冲突必须保留双方结论。 -->
+| ID | 类型 | 摘要 | 关联规则 | 证据 / 缺口 | 状态与关闭条件 |
 | --- | --- | --- | --- | --- | --- |
-| `[IDLE]` | [`path:line`] | [含义] | [条件] | [条件] | [行为] |
+| FACT-[000] | 实现事实 | [不重复算法，只说明证据支持关系] | `P-*` | [E-*] | Closed |
+| OPEN-[000] | 缺失证据 / 规格冲突 / 疑似问题 | [摘要] | [`P-*`] | [需要的证据] | Open；[关闭条件] |
 
-```mermaid
-stateDiagram-v2
-    [*] --> IDLE: reset release
-    IDLE --> ACTIVE: request
-    ACTIVE --> IDLE: complete
-```
+### 附录 F：FC / CK 完整追溯
 
-## 微架构与时序
+<!-- GENERATOR: 这是机器解析和审计清单。每个 FC/CK 只出现一行；FC 定义风险目标，CK 定义单一性质。标签、归属和 Style 必须与标签树、Test Plan、属性契约一致。 -->
+> 本附录服务于 UCAgent 和审计，不作为主要阅读入口。FC 定义验证目标，CK 定义单一可执行性质；二者不得重复功能原理。
 
-### 微架构图
-
-> 必须用 `subgraph DUT["DUT: 名称"]` 标出边界。所有跨越 subgraph 边界的箭头必须能映射到 I/O 定义中的 Chisel object 和 Verilog 端口组；箭头标签优先写 Chisel object，必要时附 Verilog 前缀。
-
-<!-- MAINTAINER: 图用于表达模块边界和数据/控制关系，不承担精确端口清单职责。精确数组下标和通配模式留在 I/O 表，避免 Mermaid parser 将其解释为图语法。 -->
-
-```mermaid
-flowchart LR
-    U[Upstream]
-    D[Downstream]
-    C[Control]
-    subgraph DUT["DUT: [名称]"]
-        IN[Ingress]
-        RES[Resource]
-        ARB[Arbitration]
-        IN -->|request| RES
-        RES -->|candidate| ARB
-    end
-    U -->|request| IN
-    ARB -->|response| D
-    C -.->|flush control| IN
-```
-
-- 图中不要放置 `[i]`、`[x]`、通配符 `*`、分号等易被 Mermaid 解析为语法的精确端口模式；图使用人类可读接口名，精确 Chisel/Verilog 映射保留在 I/O 表。
-- 不得把 `subgraph` ID 当作节点连线；边界输出必须从 subgraph 内的真实节点连接到外部节点。
-- 生成后必须用固定版本 Mermaid CLI 实际渲染全部 fence，并保存 SVG 与 source hash manifest；仅检查代码 fence 配对不算通过。
-
-### 事务时序图
-
-<!-- GENERATOR: 对 request/response、replay、flush、cancel 等跨模块事务，至少给出正常分支和一个恢复/异常分支。消息文本保持简单；精确信号名可在图后文字或 I/O 表引用。 -->
-[当事务跨模块或存在请求/响应、flush/取消竞争时，至少画一个正常分支和一个恢复分支。]
-
-### 关键资源
-
-<!-- MAINTAINER: 资源表承载 entry 生命周期、队列/阵列、计数器和子模块状态，避免这些内容污染“顶层状态机”章节。冲突和写优先级必须按实际 Chisel connect/RTL 行为记录。 -->
-| 资源 | 类型 / 规模 | 写入条件 | 读取 / 消费条件 | 冲突与优先级 | 观测点 |
-| --- | --- | --- | --- | --- | --- |
-| [Queue / SRAM / entry] | [规模] | [条件] | [条件] | [规则] | [端口 / bind] |
-
-## 形式化建模与属性契约
-
-<!-- GENERATOR: 本节连接设计事实与可生成属性。Assume 只能约束环境输入；Assert/Seq 检查 DUT 行为；Cover 防止 Assume 过强。所有跨周期更新都要给出 frame condition。 -->
-- 时钟与复位：[默认时钟、复位屏蔽策略]。
-- 可观察状态：[端口、bind 信号、`fv_idx` / `fv_mon_*`]。
-- 无界等待：[环境公平性或 liveness 表达]。
-- X 态策略：[关键 valid/ready/grant/state 无 X]。
-
-| 功能点 | 触发事件 | 预期结果 | 帧条件 | 延迟 / 界限来源 | 观测点 |
-| --- | --- | --- | --- | --- | --- |
-| `FC-[NAME]` | [握手 / 状态] | [状态或输出] | [未触发时稳定项] | [参数 / 常数] | [端口 / bind] |
-
-## 功能分组与检测点
-
-> 每个 FG、FC、CK 标签都必须在 Markdown 中可见。FG 使用标题后的独立可见标签；每个 FC 必须先有一段自然语言，解释目标、触发、结果和边界，再给出 FC 表及 CK 表。禁止只给标签或只给检查点。每个 CK 只验证一个性质。
-
-<!-- MAINTAINER: UCAgent/检查器依赖标签文本和出现顺序建立树。反引号保证尖括号标签在 Markdown 中可见；修改格式时必须同步验证真实解析器，不能只凭页面外观判断。 -->
-<!-- GENERATOR: 每个 FC 必须同时出现在标签树和一行 FC 表中，且至少拥有一个 CK。CK 应是一条独立可实现的属性；优先级链拆成相邻优先级检查，存储更新补目标正确性和非目标稳定性。 -->
-
-### 本 DUT 标签树
-
-```text
-DUT
-|- FG-API
-|  `- FC-INPUT-ASSUME
-|- FG-CORE
-|  `- FC-BEHAVIOR
-`- FG-COVERAGE
-   `- FC-REACHABILITY
-```
-
-### 1. 验证环境约束
-
-`<FG-API>`
-
-<!-- MAINTAINER: FG-API 只允许 Assume。把 DUT 输出正确性写成 Assume 会造成 vacuous proof，是必须阻止的结构性错误。 -->
-[自然语言描述此 FG 的边界；API 只能包含 Assume。]
-
-#### 输入协议
-
-[自然语言描述：外部角色、合法激励、稳定性要求以及不得约束的 DUT 输出。]
-
-| FC 标签 | 功能描述 | 触发 / 前置条件 | 预期结果 / 约束 | 边界与例外 |
+| FC 标签 | 所属 FG | 验证目标 | 关联规则 | Test Plan 行 |
 | --- | --- | --- | --- | --- |
-| `<FC-INPUT-ASSUME>` | [功能描述] | [条件] | [结果] | [边界] |
+| `<FC-INPUT-CONTRACT>` | `FG-API` | [环境输入契约] | `P-[NAME]` | [P0 / CK-API-INPUT-KNOWN] |
+| `<FC-BEHAVIOR>` | `FG-CORE` | [核心行为风险] | `P-[NAME]` | [P0 / CK-EVENT-RESULT] |
+| `<FC-REACHABILITY>` | `FG-COVERAGE` | [关键路径可达] | `P-[NAME]` | [P1 / CK-COVER-BOUNDARY] |
 
-| CK 标签 | Style | 检查说明 | 主要观测点 | 需求 / 依据 |
-| --- | --- | --- | --- | --- |
-| `<CK-API-INPUT-KNOWN>` | Assume | [关键输入控制信号非 X] | [输入] | [`path:line`] |
-| `<CK-API-VALID-STABLE>` | Assume | [valid 未握手时 payload 稳定] | [接口] | [`path:line`] |
+| CK 标签 | Style | 所属 FC | 独立性质 | 逻辑观测点 | RTL / bind 对应 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `<CK-API-INPUT-KNOWN>` | Assume | `FC-INPUT-CONTRACT` | [有效输入非 X] | `producer.data` | [附录 B / D] | Planned |
+| `<CK-EVENT-RESULT>` | Seq | `FC-BEHAVIOR` | [触发后结果正确] | `consumer.result` | [附录 B / D] | Planned |
+| `<CK-COVER-BOUNDARY>` | Cover | `FC-REACHABILITY` | [边界路径可达] | [逻辑状态] | [附录 D] | Planned |
 
-### 2. 核心功能
+### 附录 G：签核清单
 
-`<FG-CORE>`
-
-[自然语言描述此 FG。]
-
-#### [功能名称]
-
-[必须存在的 FC 自然语言描述，至少说明触发条件、处理过程、可观察结果和主要边界。]
-
-| FC 标签 | 功能描述 | 触发 / 前置条件 | 预期结果 | 帧条件 / 边界 |
-| --- | --- | --- | --- | --- |
-| `<FC-BEHAVIOR>` | [具体行为] | [事件] | [结果] | [未触发稳定项] |
-
-| CK 标签 | Style | 检查说明 | 主要观测点 | 需求 / 依据 |
-| --- | --- | --- | --- | --- |
-| `<CK-EVENT-RESULT>` | Seq | [确定延迟内的状态/输出结果] | [信号] | [`path:line`] |
-| `<CK-NO-TRIGGER-STABLE>` | Seq | [未触发时目标或非目标状态稳定] | [状态] | [`path:line`] |
-
-### 3. 可达性覆盖
-
-`<FG-COVERAGE>`
-
-<!-- MAINTAINER: FG-COVERAGE 只允许 Cover，用于证明正常、边界和恢复路径未被环境约束排除。不可达错误场景应使用显式 fault injection，而不是把非法输入常态化。 -->
-[说明正常、边界和恢复路径的可达性目标。]
-
-#### 关键场景覆盖
-
-[描述覆盖意图和防止约束过强的作用。]
-
-| FC 标签 | 功能描述 | 触发 / 前置条件 | 预期结果 | 边界与例外 |
-| --- | --- | --- | --- | --- |
-| `<FC-REACHABILITY>` | [可达性] | [环境条件] | [目标状态] | [fault injection 条件] |
-
-| CK 标签 | Style | 检查说明 | 主要观测点 | 需求 / 依据 |
-| --- | --- | --- | --- | --- |
-| `<CK-COVER-NORMAL>` | Cover | [正常路径] | [状态] | [章节] |
-| `<CK-COVER-BOUNDARY>` | Cover | [边界路径] | [状态] | [章节] |
-| `<CK-COVER-RECOVERY>` | Cover | [恢复路径] | [状态] | [章节] |
-
-## 检测点追溯与签核
-
-<!-- GENERATOR: 状态只能在 evidence、UCAgent checker、属性编译和对应回归真实通过后关闭。Planned 不表示属性已实现，Open 也不能因文档发布而自动变 Closed。 -->
-| 检测点 | 设计需求 / 章节 | 目标 SVA 类型 | DUT 观测点 | 状态 |
-| --- | --- | --- | --- | --- |
-| `CK-[NAME]` | [章节] | assert / assume / cover | [端口 / 内部状态] | Planned |
-
-- [ ] Chisel Bundle class、对象路径与 elaborated Verilog 端口逐项核对。
-- [ ] 参数均有 Scala 定义位置，未知位置已登记 OPEN。
-- [ ] 顶层状态表与状态图一致，且未混入 entry/子模块状态。
-- [ ] 微架构图中所有跨 DUT 边界箭头均与 I/O 表一致。
-- [ ] 所有 Mermaid 图已由固定 CLI 实际渲染，非空 SVG 与 source hash 已保存到版本 evidence。
-- [ ] 每个 FC 有自然语言描述、FC 表和至少一个独立 CK。
+<!-- GENERATOR: 仅对真实完成且有 evidence 的项目勾选。文档发布、AI 自检或 Planned 状态不等于工具签核。 -->
+- [ ] 摘要在细节前说明职责、输入输出、关键概念、延迟、验证范围和 OPEN。
+- [ ] 每项功能按输入、输出、延迟、统一规则、适用实例、边界与限制组织。
+- [ ] 模块级规则未混入实例枚举；实例差异集中在能力矩阵和附录 C。
+- [ ] 正文仅以 `[E-*]` 引用证据，完整路径集中在附录 D。
+- [ ] Test Plan 是验证执行入口；FC/CK 完整登记集中在附录 F。
 - [ ] API 只包含 Assume，Coverage 只包含 Cover。
+- [ ] Chisel 与 elaborated Verilog 端口逐项核对，配置裁剪有依据。
+- [ ] Mermaid 图已实际渲染并保存 SVG 与 source hash。
+- [ ] 正常、资源边界和恢复场景有可判定验收标准。
 - [ ] UCAgent checker、属性编译与回归通过后才关闭对应项。
-
-## 附录 A：场景视角 Case 示例
-
-> Case 使用 user story 视角解释多个 FC 如何协作，不替代 CK。至少包含正常、资源边界和异常/恢复场景；每个步骤引用 I/O 对象、状态和相关 FC/CK。
-
-<!-- MAINTAINER: Case 面向评审者解释端到端协作，CK 面向工具验证单一性质；二者不能互相替代。一个 Case 可以关联多个 FC/CK，但验收标准必须可观察、可判定。 -->
-
-### CASE-[N]：[场景名称]
-
-**User story**：作为[上游模块 / 验证工程师]，我希望[操作或目标]，从而[系统价值或可观察结果]。
-
-| 项目 | 内容 |
-| --- | --- |
-| 参与者 | [模块] |
-| 前置条件 | [状态、资源、参数] |
-| 输入 | [Chisel object / Verilog 端口组] |
-| 预期输出 | [接口或状态] |
-| 关联 FC / CK | [`FC-*`, `CK-*`] |
-
-| 步骤 | 参与者动作 | DUT 行为 | 可观察结果 / 检查点 |
-| --- | --- | --- | --- |
-| 1 | [动作] | [行为] | [结果] |
-| 2 | [动作] | [行为] | [结果] |
-
-**异常分支**：[同址冲突、背压、flush、响应竞争或错误恢复。]
-
-**验收标准**：[场景完成的可验证判据。]

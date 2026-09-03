@@ -1,0 +1,34 @@
+{
+  "browser": "Microsoft Edge",
+  "diagram_count": 3,
+  "diagrams": [
+    {
+      "index": 1,
+      "output": "diagram-01-flowchart.svg",
+      "source_sha256": "e4b8bd5e0a60f38dd3964136bd87dd3c387c02717ab897ef365a13c2ab24ffc5",
+      "svg_bytes": 33321,
+      "svg_sha256": "ab5107dac1fc24eb34a11810a6ca25a690e3bf8f3fe87591846eff1a59d0e1c6",
+      "type": "flowchart"
+    },
+    {
+      "index": 2,
+      "output": "diagram-02-sequenceDiagram.svg",
+      "source_sha256": "6b9dc018aea9565b66d6876354cc44e6972e7306a14a8a2b00eacb483d4c27d2",
+      "svg_bytes": 29707,
+      "svg_sha256": "a484563f8d8461e6c16d63ec04350aadc513ff19f36054ce3c656cf6e049526d",
+      "type": "sequenceDiagram"
+    },
+    {
+      "index": 3,
+      "output": "diagram-03-stateDiagram-v2.svg",
+      "source_sha256": "1f1afea27aa9a5557a218c2c6cfaa4ef83e3cbc09e660f02c9c76e22eff1b730",
+      "svg_bytes": 19002,
+      "svg_sha256": "44ef941d7b7e27eb3919fe796accabc85871cff90800bdd962da53216c83c0f5",
+      "type": "stateDiagram-v2"
+    }
+  ],
+  "document": "Sbuffer_design_document_zh_v3.0.0.md",
+  "generated_at": "2026-09-03T07:12:00.094668+00:00",
+  "renderer": "@mermaid-js/mermaid-cli/11.16.0",
+  "schema_version": 1
+}

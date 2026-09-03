@@ -10,7 +10,7 @@
 | --- | --- |
 | XiangShan submodule | `aee742c92250058644c3166fae54c489161347cc` |
 | 默认配置 | `DefaultConfig` |
-| 模板结构版本 | `v2.1.1` |
+| 模板结构版本 | `v3.1.1` |
 | 最新 Sbuffer 文档 | [v2.0.1](outputs/Sbuffer/Sbuffer_design_document_zh_v2.0.1.md) |
 | 最新质量报告 | [v2.0.1](reports/Sbuffer/Sbuffer_document_quality_review_v2.0.1.md) |
 | 文档版本历史 | [VERSION_HISTORY.md](outputs/Sbuffer/VERSION_HISTORY.md) |
@@ -68,6 +68,10 @@ inputs/ICache/ICache_ecc_spec.md
 ```
 
 没有 spec 也可以生成。Skill 会把 spec 作为设计意图参考，并以 Chisel/Scala 和 elaborated RTL 核验实现事实；冲突内容会进入质量报告或登记为 `OPEN-*`。
+
+### 使用 FM-Agent 生成初版文档
+
+`inputs/<Module>/` 下的初版 spec 文档也可以由 [FM-Agent](https://github.com/fmagent-project/FM-Agent/tree/chip) 生成。FM-Agent 面向芯片设计文档生成场景，可根据模块源码等输入整理出设计说明和功能检测点草稿。生成后将文档放入对应的 `inputs/<Module>/` 目录，再使用本项目的 Skill 继续完成版本化、源码与 elaborated RTL 核验、evidence 生成以及质量检查。FM-Agent 生成的内容属于设计意图参考，不应直接视为已确认的实现事实；其中无法由源码或 RTL 证实的内容仍需在质量报告中修正或登记为 `OPEN-*`。
 
 ### 第 4 步：运行环境预检
 
@@ -200,10 +204,12 @@ preflight
 
 ## 文档模型
 
-模板位于 [chip_design_document_template_zh.md](templates/chip-design-document/chip_design_document_template_zh.md)，当前结构版本为 `v2.1.1`。主要内容包括：
+模板位于 [chip_design_document_template_zh.md](templates/chip-design-document/chip_design_document_template_zh.md)，当前结构版本为 `v3.1.1`。文档按正文、验证计划和附录三层组织：正文以一页摘要、数据流、统一行为规则和实例能力矩阵帮助理解，验证计划以统一 Test Plan 承载 FC、CK、Coverage 和场景，附录集中保存完整接口、配置、证据与签核信息。主要内容包括：
 
 - 文档版本、RTL 基线、配置、工具链和 evidence。
-- Chisel Bundle/object 与精确 Verilog 端口映射。
+- 面向阅读的逻辑接口名，以及其到 Chisel Bundle/object 和精确 Verilog 端口的附录映射。
+- 使用 `P-*` 标识的权威行为定义，FC、CK、Coverage 和 Case 通过 ID 引用，避免同一事实重复展开。
+- 正文使用 `[E-*]` 引用证据，源码和 RTL 的完整定位统一在附录展开。
 - `Generated`、`Elided` 和 `OPEN-IO-*` 配置状态。
 - 参数的 Scala 定义位置与顶层状态机。
 - 带 DUT `subgraph` 边界的微架构图和事务时序图。

@@ -1,16 +1,19 @@
 # Contributing
 
-本指南主要面向共同维护和优化文档模板、OpenCode Skill 及其自动检查工具的开发者。使用现有工具生成某个模块文档，请直接阅读 [README.md](README.md) 的“为一个模块生成 Spec 文档”。
+本指南主要面向共同维护和优化文档模板、通用 Skill 及其自动检查工具的开发者。使用现有工具生成某个模块文档，请直接阅读 [README.md](README.md) 的“为一个模块生成 Spec 文档”。
 
 ## 维护对象
 
 | 对象 | 路径 | 职责 |
 | --- | --- | --- |
 | 文档模板 | `templates/chip-design-document/chip_design_document_template_zh.md` | 定义交付文档的章节、字段、表格和标签 schema。 |
-| OpenCode Skill | `.opencode/skills/xiangshan-design-document/SKILL.md` | 指导 AI 如何取证、生成、判断版本和完成质量门禁。 |
+| 通用 Skill | `skills/chip-dv-spec/SKILL.md` | 平台无关的任务入口、生成流程和硬约束。 |
+| Skill references | `skills/chip-dv-spec/references/` | 文档格式、DV/Testplan、证据及项目 profile。 |
+| 平台适配 | `.{opencode,claude,codex}/skills/chip-dv-spec` | 指向通用 Skill 的发现入口，不维护规则副本。 |
 | 文档检查器 | `tools/validate_document.py` | 检查单个模块版本的结构和 evidence。 |
 | 仓库检查器 | `tools/validate_repository.py` | 检查跨模块链接、manifest 和模板约束。 |
 | RTL/图形工具 | `tools/generate_rtl.sh`、`extract_rtl_evidence.py`、`validate_mermaid.py` | 产生可复现 evidence。 |
+| FM-Agent 包装器 | `tools/generate_fm_specs.py`、`make fm-spec` | 从 `rtls/<Module>/` 生成并同步硬件子模块规约。 |
 | 模板迭代记录 | `reports/template/Template_iteration_review.md` | 记录问题、决策、模板版本和回归结果。 |
 
 模板规定“输出长什么样”，Skill 规定“AI 如何得到正确输出”，checker 负责“把关键规则变成强制门禁”。修改其中一个时，必须评估另外两个是否需要同步。
@@ -22,10 +25,12 @@
 - I/O 必须区分 Chisel 声明与当前配置的 `Generated`/`Elided` Verilog 结果。
 - 顶层状态机章节不能混入 entry 生命周期或子模块 FSM。
 - `FG-API` 只能包含 Assume，`FG-COVERAGE` 只能包含 Cover。
-- 每个 FC 必须有自然语言、FC 表和至少一个独立 CK。
+- 已生成的每个 FC 必须有自然语言、FC 表和独立 CK；条目数量由 DUT 行为决定。
 - Mermaid 必须真实渲染，并以 source/SVG hash 防止使用过期证据。
 - 历史文档和 evidence 不得在普通迭代中被覆盖。
 - 不修改 XiangShan submodule 源码来迁就文档生成工具。
+- FM-Agent 使用 `third_party/FM-Agent` 固定 submodule；不要从仓库外路径或未记录 commit 生成输入规约。
+- FM-Agent 可能运行 20–30 分钟或更久；文档和 Skill 必须说明长时任务、日志位置、真实退出码和 `--resume` 恢复方式，不得用固定短超时杀掉进程。
 
 ## 模板版本
 
@@ -62,7 +67,7 @@ Skill 必须说明可执行工作流，而不是重复模板全部正文。重�
 2. checker 是否能自动发现违反规则的情况？
 3. quality report 是否记录了对应结果或未运行项？
 
-修改 Skill 后需要重启 OpenCode，再进行真实生成回归。
+修改 Skill 后需要重启会缓存 Skill 的 Agent 会话，再进行真实生成回归。
 
 ## 开发流程
 
@@ -71,15 +76,16 @@ Skill 必须说明可执行工作流，而不是重复模板全部正文。重�
 ```bash
 git switch -c <topic-branch>
 make init
+make fm-spec MODULE=<Module>
 make preflight MODULE=Sbuffer CONFIG=DefaultConfig
-make lint MODULE=Sbuffer VERSION=v2.0.1
+python3 tools/validate_repository.py
 ```
 
 记录修改前的检查结果。不要把已有失败归因于本次改动。
 
 ### 2. 做最小一致修改
 
-- 先修改模板，明确是 schema 变化还是说明变化。
+- 先修改当前模板，明确是 schema 变化还是说明变化；生成器不维护历史模板分支。
 - 再同步 Skill 的生成步骤和完成标准。
 - 能自动检查的新规则应加入 checker，避免只依赖提示词。
 - 跨平台逻辑必须同时考虑 Linux/macOS 和 x86-64/ARM64。
@@ -96,16 +102,16 @@ rm -rf .cache/mermaid-check/template
   --document templates/chip-design-document/chip_design_document_template_zh.md \
   --output-dir .cache/mermaid-check/template
 
-# 最新已交付模块文档
-make lint MODULE=Sbuffer VERSION=v2.0.1
+# 对本次新生成、使用当前模板的模块文档执行
+make lint MODULE=<Module> VERSION=<vX.Y.Z>
 git diff --check
 ```
 
-若改动会影响生成结果，应使用新文档版本完整重生成 Sbuffer，而不是改写旧版本。确认：
+若改动会影响生成结果，应使用新文档版本完整重生成回归模块，而不是改写旧版本或要求历史 schema 通过当前 validator。确认：
 
 - 设计文档、质量报告、VERSION_HISTORY 和 evidence 版本一致。
 - RTL commit/config/hash 未变化时，质量报告明确说明。
-- FG/FC/CK 的新增、删除或语义变化符合所选文档版本。
+- FG/FC/CK 的新增、删除或语义变化有行为与证据依据，不按固定数量验收。
 - 所有 Mermaid SVG 可渲染且 source hash 最新。
 - XiangShan submodule 保持 clean。
 
@@ -135,7 +141,7 @@ PR 应聚焦一个模板或 Skill 问题，并说明：
 
 - `git diff --check` 通过。
 - 模板 Mermaid 示例实际渲染成功。
-- `make lint MODULE=Sbuffer VERSION=<regression-version>` 通过。
+- `make lint MODULE=<Module> VERSION=<current-schema-version>` 通过。
 - 敏感信息、缓存和 submodule build 未进入提交。
 
 ## 提交信息

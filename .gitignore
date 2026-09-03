@@ -13,6 +13,10 @@ tmp/
 third_party/XiangShan/build/
 third_party/XiangShan/out/
 
+# FM-Agent per-module workspaces contain resumable prompts, traces and caches;
+# committed inputs are synchronized *_spec.md/_info.md under inputs/<Module>/fm_agent/.
+rtls/*/fm_agent/
+
 # Python
 __pycache__/
 *.py[cod]

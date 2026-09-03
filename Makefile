@@ -2,7 +2,7 @@ MODULE ?= Sbuffer
 CONFIG ?= DefaultConfig
 VERSION ?= v2.0.1
 
-.PHONY: init preflight rtl evidence render render-check validate lint clean-cache
+.PHONY: init preflight rtl evidence fm-spec fm-spec-fresh fm-spec-check render render-check validate lint clean-cache
 
 init:
 	git submodule update --init --recursive
@@ -15,6 +15,15 @@ rtl:
 
 evidence:
 	./tools/generate_rtl.sh --module "$(MODULE)" --config "$(CONFIG)" --version "$(VERSION)"
+
+fm-spec:
+	./tools/generate_fm_specs.py --module "$(MODULE)"
+
+fm-spec-fresh:
+	./tools/generate_fm_specs.py --module "$(MODULE)" --fresh
+
+fm-spec-check:
+	./tools/generate_fm_specs.py --module "$(MODULE)" --check
 
 render:
 	./tools/validate_mermaid.py --document "outputs/$(MODULE)/$(MODULE)_design_document_zh_$(VERSION).md" --output-dir "evidence/$(MODULE)/$(VERSION)/diagrams"

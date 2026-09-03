@@ -60,3 +60,14 @@
 ## 2026-09-02 模板维护注释
 
 模板结构版本由 v2.1.0 升为 v2.1.1。该 Patch 不改变生成文档 schema，使用 HTML 注释补充版本、证据优先级、I/O Generated/Elided、Harness 参数、顶层 FSM、Mermaid、FG/FC/CK 和签核状态的维护规则。注释供模板开发者和生成器阅读，不进入 Markdown 渲染正文。
+
+## 2026-09-03 通用 Skill 与可读性重构
+
+| 问题 | 修订 | 验证标准 |
+| --- | --- | --- |
+| 模板在 DUT 行为前展示范围、审计和完整端口表，连续阅读成本高。 | 模板 v3.0.0 改为摘要、设计概览、功能行为、Testplan、形式化契约、Sign-off，完整 I/O、参数、证据和追溯后移至附录。 | 新文档章节存在且按当前模板排序，正文无生成过程或阅读指导。 |
+| Skill 主源位于 `.opencode`，其他平台依赖 OpenCode 路径。 | 建立 `skills/chip-dv-spec/` 唯一主源，OpenCode、Claude、Codex 使用符号链接适配；保留旧名称作为兼容别名。 | 仓库校验器检查三个平台入口均解析到 canonical Skill。 |
+| 单一 Skill 文件同时承载格式、DV、证据和工程细节。 | 入口只保留流程与硬约束，详细规则拆入按需加载的 references，XiangShan 作为项目 profile。 | Skill frontmatter、引用链接和平台入口可独立检查。 |
+| 旧校验器把全文四级标题当 FC，并强制至少三个 Case。 | 解析范围限制在 Testplan，按显式 FC ID 建立标题/表格关联；Case、FC、CK、图表和行数只报告，不设固定数量。 | 校验当前格式、ID、Style、追溯和 evidence，不根据 DUT 示例数量判定质量。 |
+
+生成流程始终读取当前模板，不维护 v2/v3 运行时分支。历史文档保持原状；只有新生成或显式指定的文档按当前 schema 校验。

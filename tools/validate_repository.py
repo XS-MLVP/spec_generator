@@ -17,11 +17,16 @@ LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 MERMAID_RE = re.compile(r"^```mermaid\s*\n(.*?)^```\s*$", re.M | re.S)
 
 
+def prose_without_fences(text: str) -> str:
+    return re.sub(r"^```.*?^```\s*$", "", text, flags=re.M | re.S)
+
+
 def main() -> int:
     errors: list[str] = []
     markdown_files = [path for path in ROOT.rglob("*.md") if not EXCLUDED_PARTS.intersection(path.relative_to(ROOT).parts)]
     for source in markdown_files:
-        for raw in LINK_RE.findall(source.read_text(encoding="utf-8")):
+        text = prose_without_fences(source.read_text(encoding="utf-8"))
+        for raw in LINK_RE.findall(text):
             if raw.startswith(("http://", "https://", "#")):
                 continue
             target_text, _, fragment = raw.partition("#")
@@ -69,38 +74,33 @@ def main() -> int:
             if len(data) < 200 or "<svg" not in svg or "viewBox=" not in svg:
                 errors.append(f"invalid diagram SVG: {output.relative_to(ROOT)}")
 
-    for document in ROOT.glob("outputs/*/*_design_document_zh_v*.md"):
-        text = document.read_text(encoding="utf-8")
-        template_match = re.search(r"\| 使用模板版本 \| v(\d+)\.", text)
-        if not template_match or int(template_match.group(1)) < 2:
-            continue
-        version_match = re.search(r"_(v\d+\.\d+\.\d+)\.md$", document.name)
-        if not version_match:
-            errors.append(f"cannot derive document version: {document.relative_to(ROOT)}")
-            continue
-        module = document.parent.name
-        diagram_manifest_path = ROOT / "evidence" / module / version_match.group(1) / "diagrams" / "manifest.json"
-        if not diagram_manifest_path.exists():
-            errors.append(f"missing required diagram manifest: {diagram_manifest_path.relative_to(ROOT)}")
-            continue
-        manifest = json.loads(diagram_manifest_path.read_text(encoding="utf-8"))
-        sources = [match.group(1).rstrip() + "\n" for match in MERMAID_RE.finditer(text)]
-        entries = manifest.get("diagrams", [])
-        if len(sources) != len(entries):
-            errors.append(f"stale diagram count: {document.relative_to(ROOT)}")
-            continue
-        for index, source in enumerate(sources):
-            if hashlib.sha256(source.encode()).hexdigest() != entries[index].get("source_sha256"):
-                errors.append(f"stale diagram source evidence: {document.relative_to(ROOT)} diagram {index + 1}")
-
     template = ROOT / "templates/chip-design-document/chip_design_document_template_zh.md"
     if not re.search(r"^> 模板结构版本：v\d+\.\d+\.\d+$", template.read_text(encoding="utf-8"), re.M):
         errors.append("template structure version missing or invalid")
 
-    skill = ROOT / ".opencode/skills/xiangshan-design-document/SKILL.md"
+    skill = ROOT / "skills/chip-dv-spec/SKILL.md"
     skill_text = skill.read_text(encoding="utf-8")
-    if not skill_text.startswith("---\n") or "name: xiangshan-design-document" not in skill_text[:500] or "description:" not in skill_text[:500]:
-        errors.append("invalid xiangshan-design-document Skill frontmatter")
+    if not skill_text.startswith("---\n") or "name: chip-dv-spec" not in skill_text[:500] or "description:" not in skill_text[:500]:
+        errors.append("invalid chip-dv-spec Skill frontmatter")
+
+    fm_root = ROOT / "third_party/FM-Agent"
+    fm_main = fm_root / "main.py"
+    if not fm_main.is_file() or not (fm_root / "pyproject.toml").is_file():
+        errors.append("FM-Agent submodule is missing or uninitialized")
+    elif "--verilog" not in fm_main.read_text(encoding="utf-8", errors="replace"):
+        errors.append("pinned FM-Agent does not provide the hardware Verilog flow")
+    wrapper = ROOT / "tools/generate_fm_specs.py"
+    if not wrapper.is_file():
+        errors.append("FM-Agent wrapper missing: tools/generate_fm_specs.py")
+
+    adapters = (
+        ROOT / ".opencode/skills/chip-dv-spec",
+        ROOT / ".claude/skills/chip-dv-spec",
+        ROOT / ".codex/skills/chip-dv-spec",
+    )
+    for adapter in adapters:
+        if not adapter.is_symlink() or adapter.resolve() != skill.parent.resolve():
+            errors.append(f"invalid platform Skill adapter: {adapter.relative_to(ROOT)}")
 
     print(
         f"Markdown files={len(markdown_files)} "

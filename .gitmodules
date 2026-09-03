@@ -1,3 +1,7 @@
 [submodule "third_party/XiangShan"]
 	path = third_party/XiangShan
 	url = https://github.com/OpenXiangShan/XiangShan.git
+[submodule "third_party/FM-Agent"]
+	path = third_party/FM-Agent
+	url = https://github.com/fmagent-project/FM-Agent.git
+	branch = chip

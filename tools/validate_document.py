@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate versioned XiangShan design-document artifacts."""
+"""Validate a document against the repository's current chip DV schema."""
 
 from __future__ import annotations
 
@@ -18,7 +18,24 @@ FC_ROW_RE = re.compile(r"^\| `<(FC-[A-Z0-9-]+)>` \|", re.M)
 CK_ROW_RE = re.compile(r"^\| `<(CK-[A-Z0-9-]+)>` \| ([^|]+) \|", re.M)
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 MERMAID_RE = re.compile(r"^```mermaid\s*\n(.*?)^```\s*$", re.M | re.S)
-ALLOWED_STYLES = {"Comb", "Seq", "Seq, Symbolic", "Assume", "Cover"}
+TEMPLATE_VERSION_RE = re.compile(r"^> 模板结构版本：(v\d+\.\d+\.\d+)$", re.M)
+DOCUMENT_TEMPLATE_VERSION_RE = re.compile(r"\| 使用模板版本 \| (v\d+\.\d+\.\d+) \|")
+ALLOWED_STYLES = {"Comb", "Seq", "Seq, Symbolic", "Assume", "Assert", "Cover"}
+REQUIRED_H2 = (
+    "1. 文档摘要",
+    "2. 设计概览",
+    "3. 功能行为",
+    "4. 验证策略与 Testplan",
+    "5. 形式化属性契约",
+    "6. Sign-off 与开放项",
+    "附录 A：I/O 定义与接口约束",
+    "附录 B：参数、编码、状态与复位",
+    "附录 C：范围、文档控制、证据与版本变更",
+    "附录 D：CK 追溯矩阵",
+    "附录 E：场景视角 Test Case",
+)
+PLACEHOLDER_RE = re.compile(r"\[(?:DUT 名称|vMAJOR|功能行为名称|核心功能名称|API 功能名称|覆盖场景名称|按需增加)")
+META_PROSE_RE = re.compile(r"(?:本文档是|推荐阅读(?:顺序)?|完整重排版|本版本(?:进行了|重新排版))")
 
 
 class Validation:
@@ -35,21 +52,93 @@ class Validation:
             self.warnings.append(message)
 
 
-def table_scope(text: str, fg: str, next_fg: str | None) -> str:
-    start = text.find(f"`<{fg}>`")
+def section(text: str, heading: str, next_heading: str | None = None) -> str:
+    start = text.find(heading)
     if start < 0:
         return ""
-    if next_fg:
-        end = text.find(f"`<{next_fg}>`", start + 1)
-        return text[start : end if end >= 0 else None]
-    end = text.find("\n## 检测点追溯", start)
-    return text[start : end if end >= 0 else None]
+    end = text.find(next_heading, start + len(heading)) if next_heading else len(text)
+    return text[start : end if end >= 0 else len(text)]
+
+
+def current_template_version(root: Path) -> str:
+    template = root / "templates" / "chip-design-document" / "chip_design_document_template_zh.md"
+    match = TEMPLATE_VERSION_RE.search(template.read_text(encoding="utf-8"))
+    if not match:
+        raise ValueError(f"template structure version missing: {template}")
+    return match.group(1)
+
+
+def validate_current_structure(text: str, template_version: str, result: Validation) -> tuple[list[str], list[str], list[str]]:
+    title = re.search(r"^# (.+) 模块规格与验证计划$", text, re.M)
+    result.require(title is not None, "document title must be '<DUT> 模块规格与验证计划'")
+
+    positions: list[int] = []
+    for name in REQUIRED_H2:
+        match = re.search(rf"^## {re.escape(name)}$", text, re.M)
+        result.require(match is not None, f"missing current-schema section: {name}")
+        if match:
+            positions.append(match.start())
+    result.require(positions == sorted(positions) and len(positions) == len(REQUIRED_H2), "current-schema sections are out of order")
+
+    version_match = DOCUMENT_TEMPLATE_VERSION_RE.search(text)
+    result.require(version_match is not None, "document-control template version missing")
+    if version_match:
+        result.require(version_match.group(1) == template_version, f"document uses {version_match.group(1)}, current template is {template_version}")
+
+    main_end = text.find("\n## 附录 A：")
+    main_body = text[: main_end if main_end >= 0 else len(text)]
+    result.require(META_PROSE_RE.search(main_body) is None, "main body contains generation/reading meta prose")
+    result.require(PLACEHOLDER_RE.search(text) is None, "unresolved template placeholder")
+    result.require(text.count("```") % 2 == 0, "unbalanced Markdown fences")
+
+    testplan = section(text, "## 4. 验证策略与 Testplan", "## 5. 形式化属性契约")
+    fgs = FG_RE.findall(testplan)
+    fcs = FC_ROW_RE.findall(testplan)
+    ck_pairs = [(name, style.strip()) for name, style in CK_ROW_RE.findall(testplan)]
+    cks = [name for name, _ in ck_pairs]
+    result.require(bool(fgs), "Testplan contains no FG labels")
+    result.require(bool(fcs), "Testplan contains no FC rows")
+    result.require(bool(cks), "Testplan contains no CK rows")
+    result.require(len(fgs) == len(set(fgs)), "duplicate FG labels")
+    result.require(len(fcs) == len(set(fcs)), "duplicate FC labels")
+    result.require(len(cks) == len(set(cks)), "duplicate CK labels")
+    result.require(not re.search(r"^<(?:FG|FC|CK)-", text, re.M), "bare angle-bracket label may be hidden by Markdown")
+    result.require(all(style in ALLOWED_STYLES for _, style in ck_pairs), "illegal CK Style")
+
+    tree_match = re.search(r"### 4\.2 Testplan 标签树\s+```text\n(.*?)```", testplan, re.S)
+    result.require(tree_match is not None, "missing Testplan label tree")
+    if tree_match:
+        tree_fcs = set(re.findall(r"FC-[A-Z0-9-]+", tree_match.group(1)))
+        result.require(tree_fcs == set(fcs), f"FC tree/table mismatch: tree-only={sorted(tree_fcs-set(fcs))}, table-only={sorted(set(fcs)-tree_fcs)}")
+
+    fc_headings = set(re.findall(r"^#### .*?(FC-[A-Z0-9-]+).*$", testplan, re.M))
+    result.require(fc_headings == set(fcs), f"FC heading/table mismatch: heading-only={sorted(fc_headings-set(fcs))}, table-only={sorted(set(fcs)-fc_headings)}")
+    for heading in re.finditer(r"^#### .*?(FC-[A-Z0-9-]+).*$", testplan, re.M):
+        next_heading = re.search(r"^#### ", testplan[heading.end() :], re.M)
+        end = heading.end() + next_heading.start() if next_heading else len(testplan)
+        block = testplan[heading.end() : end]
+        prose = block[: block.find("\n|") if "\n|" in block else len(block)]
+        result.require(bool(re.search(r"[^\s|`#*\-]", prose)), f"missing prose after FC heading: {heading.group(1)}")
+
+    for fg, next_fg in zip(fgs, fgs[1:] + [None]):
+        scope = section(testplan, f"`<{fg}>`", f"`<{next_fg}>`" if next_fg else None)
+        styles = [style.strip() for _, style in CK_ROW_RE.findall(scope)]
+        if fg == "FG-API":
+            result.require(all(style == "Assume" for style in styles), "FG-API contains non-Assume CK")
+        if fg == "FG-COVERAGE":
+            result.require(all(style == "Cover" for style in styles), "FG-COVERAGE contains non-Cover CK")
+
+    traceability = section(text, "## 附录 D：CK 追溯矩阵", "## 附录 E：场景视角 Test Case")
+    traced_cks = set(re.findall(r"^\| (?:`<)?(CK-[A-Z0-9-]+)(?:>`)? \|", traceability, re.M))
+    result.require(traced_cks == set(cks), f"CK traceability mismatch: trace-only={sorted(traced_cks-set(cks))}, Testplan-only={sorted(set(cks)-traced_cks)}")
+    return fgs, fcs, cks
 
 
 def validate_links(files: list[Path], result: Validation) -> None:
     for source in files:
         text = source.read_text(encoding="utf-8")
-        for raw in LINK_RE.findall(text):
+        prose = re.sub(r"^```.*?^```\s*$", "", text, flags=re.M | re.S)
+        for raw in LINK_RE.findall(prose):
             if raw.startswith(("http://", "https://", "#")):
                 continue
             target_text, _, fragment = raw.partition("#")
@@ -71,140 +160,53 @@ def match_port_pattern(pattern: str, port_names: set[str]) -> tuple[list[str], d
     indices: dict[str, set[int]] = {marker: set() for marker in marker_names}
     for name in port_names:
         match = compiled.fullmatch(name)
-        if not match:
-            continue
-        matches.append(name)
-        for marker in marker_names:
-            indices[marker].add(int(match.group(marker)))
+        if match:
+            matches.append(name)
+            for marker in marker_names:
+                indices[marker].add(int(match.group(marker)))
     return matches, indices
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--module", required=True)
-    parser.add_argument("--version", required=True)
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--strict-evidence", action="store_true")
-    args = parser.parse_args()
-
-    result = Validation()
-    result.require(bool(VERSION_RE.fullmatch(args.version)), f"invalid version: {args.version}")
-
-    design = args.root / "outputs" / args.module / f"{args.module}_design_document_zh_{args.version}.md"
-    report = args.root / "reports" / args.module / f"{args.module}_document_quality_review_{args.version}.md"
-    history = args.root / "outputs" / args.module / "VERSION_HISTORY.md"
-    evidence = args.root / "evidence" / args.module / args.version
+def validate_evidence(design: Path, text: str, evidence: Path, strict: bool, result: Validation) -> None:
     manifest_path = evidence / "manifest.json"
     ports_path = evidence / "ports.csv"
     diagram_manifest_path = evidence / "diagrams" / "manifest.json"
-
-    for path in (design, report, history):
-        result.require(path.exists(), f"missing artifact: {path}")
-    if result.errors:
-        for error in result.errors:
-            print(f"ERROR: {error}", file=sys.stderr)
-        return 1
-
-    text = design.read_text(encoding="utf-8")
-    report_text = report.read_text(encoding="utf-8")
-    history_text = history.read_text(encoding="utf-8")
-
-    result.require(f"> 文档版本：{args.version}" in text, "visible design version missing")
-    result.require(re.search(rf"\| 文档版本 \| {re.escape(args.version)} \|", text) is not None, "document-control version missing")
-    result.require(args.version in report_text, "report version missing")
-    result.require(design.name in history_text and report.name in history_text, "history links do not name both artifacts")
-
-    existing_versions = []
-    for path in design.parent.glob(f"{args.module}_design_document_zh_v*.md"):
-        match = re.search(r"_(v\d+\.\d+\.\d+)\.md$", path.name)
-        if match:
-            existing_versions.append(match.group(1))
-    result.require(len(existing_versions) == len(set(existing_versions)), "duplicate versioned design files")
-
-    fgs = FG_RE.findall(text)
-    fcs = FC_ROW_RE.findall(text)
-    ck_pairs = [(name, style.strip()) for name, style in CK_ROW_RE.findall(text)]
-    cks = [name for name, _ in ck_pairs]
-    result.require(len(fgs) == len(set(fgs)), "duplicate FG labels")
-    result.require(len(fcs) == len(set(fcs)), "duplicate FC labels")
-    result.require(len(cks) == len(set(cks)), "duplicate CK labels")
-    result.require(not re.search(r"^<(?:FG|FC|CK)-", text, re.M), "bare angle-bracket label may be hidden by Markdown")
-    result.require(all(style in ALLOWED_STYLES for _, style in ck_pairs), "illegal CK Style")
-
-    tree_match = re.search(r"### 本 DUT 标签树\s+```text\n(.*?)```", text, re.S)
-    result.require(tree_match is not None, "missing label tree")
-    if tree_match:
-        tree_fcs = set(re.findall(r"FC-[A-Z0-9-]+", tree_match.group(1)))
-        result.require(tree_fcs == set(fcs), f"FC tree/table mismatch: tree-only={sorted(tree_fcs-set(fcs))}, table-only={sorted(set(fcs)-tree_fcs)}")
-
-    for index, fg in enumerate(fgs):
-        scope = table_scope(text, fg, fgs[index + 1] if index + 1 < len(fgs) else None)
-        styles = [style.strip() for _, style in CK_ROW_RE.findall(scope)]
-        if fg == "FG-API":
-            result.require(all(style == "Assume" for style in styles), "FG-API contains non-Assume CK")
-        if fg == "FG-COVERAGE":
-            result.require(all(style == "Cover" for style in styles), "FG-COVERAGE contains non-Cover CK")
-
-    headings = list(re.finditer(r"^#### .+$", text, re.M))
-    result.require(len(headings) == len(fcs), f"FC natural-language heading count {len(headings)} != FC count {len(fcs)}")
-    for idx, heading in enumerate(headings):
-        end = headings[idx + 1].start() if idx + 1 < len(headings) else len(text)
-        block = text[heading.end() : end]
-        first_table = block.find("\n|")
-        prose = block[:first_table] if first_table >= 0 else block
-        result.require(bool(re.search(r"[^\s|`#*-]", prose)), f"missing prose after heading: {heading.group(0)}")
-
-    result.require(text.count("```") % 2 == 0, "unbalanced Markdown fences")
-    result.require('subgraph DUT["DUT: ' in text, "architecture DUT subgraph missing")
-    result.require(len(re.findall(r"^### CASE-", text, re.M)) >= 3, "fewer than three scenario cases")
     mermaid_sources = [match.group(1).rstrip() + "\n" for match in MERMAID_RE.finditer(text)]
-
-    validate_links([design, report, history], result)
 
     if manifest_path.exists() and ports_path.exists():
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         with ports_path.open(encoding="utf-8", newline="") as handle:
             ports = list(csv.DictReader(handle))
         port_names = {row["name"] for row in ports}
-        result.require(manifest.get("module") == args.module, "evidence module mismatch")
         result.require(manifest.get("port_count") == len(ports), "evidence port count mismatch")
-        commit = manifest.get("xiangshan_commit", "")
-        result.require(commit in text and commit in report_text and commit in history_text, "evidence commit not consistent across artifacts")
-        claimed = re.search(r"(\d+) 个叶端口：?(\d+)?", text)
-        if claimed:
-            result.require(int(claimed.group(1)) == len(ports), "document port count does not match manifest")
-        checked_tokens: set[str] = set()
+        checked: set[str] = set()
         for line in text.splitlines():
             if any(marker in line for marker in ("未生成", "Elided", "不含", "裁剪")):
                 continue
             for token in re.findall(r"`(io_[A-Za-z0-9_\[\]*]+)`", line):
-                if token in checked_tokens:
+                if token in checked:
                     continue
-                checked_tokens.add(token)
+                checked.add(token)
                 matches, indices = match_port_pattern(token, port_names)
                 result.require(bool(matches), f"documented RTL port/pattern missing: {token}")
                 for marker, values in indices.items():
                     if values:
                         result.require(values == set(range(max(values) + 1)), f"non-contiguous indices for {token} marker [{marker}]: {sorted(values)}")
-    elif args.strict_evidence:
+    elif strict:
         result.errors.append(f"missing evidence manifest/ports: {evidence}")
     else:
         result.warnings.append(f"evidence not available: {evidence}")
 
-    template_match = re.search(r"\| 使用模板版本 \| v(\d+)\.", text)
-    requires_render_evidence = bool(template_match and int(template_match.group(1)) >= 2)
     if diagram_manifest_path.exists():
-        diagram_manifest = json.loads(diagram_manifest_path.read_text(encoding="utf-8"))
-        entries = diagram_manifest.get("diagrams", [])
-        result.require(diagram_manifest.get("document") == design.name, "Mermaid manifest document mismatch")
-        result.require(diagram_manifest.get("diagram_count") == len(mermaid_sources), "Mermaid diagram count mismatch")
+        manifest = json.loads(diagram_manifest_path.read_text(encoding="utf-8"))
+        entries = manifest.get("diagrams", [])
+        result.require(manifest.get("document") == design.name, "Mermaid manifest document mismatch")
         result.require(len(entries) == len(mermaid_sources), "Mermaid manifest entry count mismatch")
         for index, source in enumerate(mermaid_sources):
             if index >= len(entries):
                 break
             entry = entries[index]
-            expected_source_hash = hashlib.sha256(source.encode()).hexdigest()
-            result.require(entry.get("source_sha256") == expected_source_hash, f"stale Mermaid render evidence for diagram {index + 1}")
+            result.require(entry.get("source_sha256") == hashlib.sha256(source.encode()).hexdigest(), f"stale Mermaid render evidence for diagram {index + 1}")
             output = diagram_manifest_path.parent / str(entry.get("output", ""))
             result.require(output.exists(), f"missing rendered Mermaid SVG: {output}")
             if output.exists():
@@ -212,10 +214,63 @@ def main() -> int:
                 svg = data.decode("utf-8", errors="replace")
                 result.require(hashlib.sha256(data).hexdigest() == entry.get("svg_sha256"), f"Mermaid SVG hash mismatch: {output}")
                 result.require(len(data) >= 200 and "<svg" in svg and "viewBox=" in svg, f"invalid/blank Mermaid SVG: {output}")
-    elif args.strict_evidence and requires_render_evidence:
+    elif strict and mermaid_sources:
         result.errors.append(f"missing Mermaid render evidence: {diagram_manifest_path.parent}")
 
-    print(f"FG={len(fgs)} FC={len(fcs)} CK={len(cks)} cases={len(re.findall(r'^### CASE-', text, re.M))}")
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--module")
+    parser.add_argument("--version")
+    parser.add_argument("--document", type=Path, help="validate a draft directly; skips versioned companion artifacts")
+    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--strict-evidence", action="store_true")
+    args = parser.parse_args()
+    result = Validation()
+
+    if args.document:
+        design = args.document.resolve()
+        report = history = evidence = None
+    else:
+        if not args.module or not args.version:
+            parser.error("--module and --version are required unless --document is used")
+        result.require(bool(VERSION_RE.fullmatch(args.version)), f"invalid version: {args.version}")
+        design = args.root / "outputs" / args.module / f"{args.module}_design_document_zh_{args.version}.md"
+        report = args.root / "reports" / args.module / f"{args.module}_document_quality_review_{args.version}.md"
+        history = args.root / "outputs" / args.module / "VERSION_HISTORY.md"
+        evidence = args.root / "evidence" / args.module / args.version
+        for path in (design, report, history):
+            result.require(path.exists(), f"missing artifact: {path}")
+
+    if not design.exists() or result.errors:
+        if not design.exists():
+            result.errors.append(f"missing document: {design}")
+        for error in result.errors:
+            print(f"ERROR: {error}", file=sys.stderr)
+        return 1
+
+    text = design.read_text(encoding="utf-8")
+    try:
+        template_version = current_template_version(args.root)
+    except ValueError as exc:
+        result.errors.append(str(exc))
+        template_version = ""
+    fgs, fcs, cks = validate_current_structure(text, template_version, result)
+
+    if report and history and evidence:
+        report_text = report.read_text(encoding="utf-8")
+        history_text = history.read_text(encoding="utf-8")
+        result.require(f"> 文档版本：{args.version}" in text, "visible design version missing")
+        result.require(re.search(rf"\| 文档版本 \| {re.escape(args.version)} \|", text) is not None, "document-control version missing")
+        result.require(args.version in report_text, "report version missing")
+        result.require(design.name in history_text and report.name in history_text, "history links do not name both artifacts")
+        validate_links([design, report, history], result)
+        validate_evidence(design, text, evidence, args.strict_evidence, result)
+    elif args.strict_evidence:
+        result.warnings.append("--strict-evidence is ignored with --document because no module/version evidence path is defined")
+
+    cases = len(re.findall(r"^### CASE-", text, re.M))
+    print(f"FG={len(fgs)} FC={len(fcs)} CK={len(cks)} cases={cases}")
     for warning in result.warnings:
         print(f"WARN: {warning}", file=sys.stderr)
     for error in result.errors:

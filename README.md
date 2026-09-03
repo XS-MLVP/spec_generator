@@ -10,7 +10,7 @@
 | --- | --- |
 | XiangShan submodule | `aee742c92250058644c3166fae54c489161347cc` |
 | 默认配置 | `DefaultConfig` |
-| 模板结构版本 | `v2.1.1` |
+| 模板结构版本 | `v3.0.0` |
 | 最新 Sbuffer 文档 | [v2.0.1](outputs/Sbuffer/Sbuffer_design_document_zh_v2.0.1.md) |
 | 最新质量报告 | [v2.0.1](reports/Sbuffer/Sbuffer_document_quality_review_v2.0.1.md) |
 | 文档版本历史 | [VERSION_HISTORY.md](outputs/Sbuffer/VERSION_HISTORY.md) |
@@ -20,7 +20,7 @@
 
 ## 为一个模块生成 Spec 文档
 
-这里的 “Spec 文档” 指 `outputs/<Module>/` 下按照模板生成的设计与功能检测点文档。推荐由 OpenCode 加载项目 Skill 后完成源码分析、版本选择、RTL evidence、正文、质量报告和检查，不需要使用者手工拼接各个工具命令。
+这里的 “Spec 文档” 指 `outputs/<Module>/` 下按照当前模板生成的模块规格与验证计划。任意支持项目 Skill 的 LLM/Agent 都可以完成源码分析、版本选择、RTL evidence、正文、质量报告和检查；确定性生成与校验仍由仓库工具完成。
 
 ### 第 1 步：克隆并初始化项目
 
@@ -35,7 +35,7 @@ cd spec_generator
 make init
 ```
 
-所有 OpenCode 和 `make` 命令都应从仓库根目录 `spec_generator/` 执行。
+所有 Agent 和 `make` 命令都应从仓库根目录 `spec_generator/` 执行。
 
 ### 第 2 步：确定模块和配置
 
@@ -52,7 +52,31 @@ make init
 
 配置决定参数、功能开关和最终 Verilog 端口。没有项目特定要求时使用 `DefaultConfig`；不能把其他配置生成的 RTL evidence 复用到当前文档。
 
-### 第 3 步：放置可选输入 Spec
+### 第 3 步：准备 RTL 并生成 FM-Agent 输入规约
+
+RTL 文件统一放在：
+
+```text
+rtls/<Module>/*.v|*.sv|*.svh
+```
+
+仓库固定了 FM-Agent 的 `chip` 分支 commit。准备好 RTL 后运行：
+
+```bash
+make fm-spec MODULE=vfScheduler
+```
+
+该命令实际在 `third_party/FM-Agent` 中执行：
+
+```bash
+uv run python <absolute-path>/rtls/vfScheduler --hardware --verilog
+```
+
+FM-Agent 的原始工作区和相对证据保留在 `rtls/<Module>/fm_agent/`，`*_spec.md`/`*_info.md` 同步到 `inputs/<Module>/fm_agent/`。该阶段是长时间运行的 LLM 任务：中等规模 RTL 通常需要 20–30 分钟，复杂设计可能更久；启动前应确认 API 凭据、网络和费用预算，运行时不要因为几分钟没有终端输出而重复启动。进度可查看 `rtls/<Module>/fm_agent/fm_agent.log`，以进程退出码判断结果。
+
+已有工作区默认走 `--resume`；进程中断或网络/模型错误修复后再次运行普通 `make fm-spec MODULE=<Module>`，RTL 或规约需要完整重跑时才使用 `make fm-spec-fresh MODULE=<Module>`。只有 `make fm-spec-check MODULE=<Module>` 通过后，才将规约交给文档 Skill；部分输出不得手工当作完成结果。
+
+### 第 4 步：放置可选输入 Spec
 
 已有需求说明、旧设计文档或 AI 生成的草稿可以放入：
 
@@ -69,7 +93,7 @@ inputs/ICache/ICache_ecc_spec.md
 
 没有 spec 也可以生成。Skill 会把 spec 作为设计意图参考，并以 Chisel/Scala 和 elaborated RTL 核验实现事实；冲突内容会进入质量报告或登记为 `OPEN-*`。
 
-### 第 4 步：运行环境预检
+### 第 5 步：运行环境预检
 
 ```bash
 make preflight MODULE=<Module> CONFIG=<Config>
@@ -83,18 +107,12 @@ make preflight MODULE=Sbuffer CONFIG=DefaultConfig
 
 看到 `Summary: 0 error(s)` 后再开始生成。工具支持 Linux x86-64/ARM64 和 macOS Intel/Apple Silicon。缺少的 JDK、Mill、Node.js、Mermaid CLI 和 headless browser 会下载到 `.cache/`；非 Linux x86-64 主机会构建固定 commit 的 native Espresso。详细依赖见 [environment/README.md](environment/README.md)。
 
-### 第 5 步：从仓库根目录启动 OpenCode
+### 第 6 步：使用通用 Skill 生成
 
-确保已安装 [OpenCode](https://opencode.ai/docs/)，然后从仓库根目录启动，使其发现 `.opencode/skills/`：
-
-```bash
-opencode
-```
-
-启动后使用下面的请求模板：
+通用 Skill 的唯一主源为 `skills/chip-dv-spec/`。仓库同时提供 `.opencode/skills/`、`.claude/skills/` 和 `.codex/skills/` 发现入口；选择所用平台并从仓库根目录启动。使用下面的请求模板：
 
 ```text
-请使用 xiangshan-design-document Skill 为 <Module> 生成设计与功能检测点文档。
+请使用 chip-dv-spec Skill 为 <Module> 生成模块规格与验证计划。
 DUT Chisel 顶层 class：<ClassName>
 XiangShan 配置：<Config>
 可选 spec：inputs/<Module>/（如不存在则只使用源码）
@@ -105,16 +123,16 @@ RTL/端口 evidence 和 Mermaid 渲染 evidence，并运行严格 checker 与 ma
 Sbuffer 示例：
 
 ```text
-请使用 xiangshan-design-document Skill 为 Sbuffer 生成下一版设计与功能检测点文档。
+请使用 chip-dv-spec Skill 为 Sbuffer 生成下一版模块规格与验证计划。
 DUT Chisel 顶层 class：Sbuffer
 XiangShan 配置：DefaultConfig
 可选 spec：inputs/Sbuffer/
 请生成全部版本化产物并运行严格 checker 与 make lint。
 ```
 
-如果刚修改或首次加入 `.opencode/skills/`，请重启 OpenCode 后再生成；Skill 在会话启动时加载，不会热更新。
+如果平台只在会话启动时加载 Skill，修改 Skill 后需要重启对应会话。
 
-### 第 6 步：检查生成产物
+### 第 7 步：检查生成产物
 
 一次完整生成应新增同一版本的以下内容：
 
@@ -130,7 +148,7 @@ evidence/<Module>/vX.Y.Z/diagrams/*.svg
 
 设计文档、质量报告、history 和 evidence 的版本必须完全一致。`manifest.json` 应记录 XiangShan commit、配置、生成状态、工具版本、RTL SHA-256 和端口数量。
 
-### 第 7 步：独立运行验收
+### 第 8 步：独立运行验收
 
 即使 AI 已报告检查通过，也建议使用者重新运行：
 
@@ -153,7 +171,7 @@ make lint MODULE=<Module> VERSION=vX.Y.Z
 make evidence MODULE=<Module> CONFIG=<Config> VERSION=vX.Y.Z
 ```
 
-该版本必须尚未存在。evidence 创建后，再让 OpenCode 使用完全相同的模块、配置和版本生成正文。历史 evidence 默认禁止覆盖。
+该版本必须尚未存在。evidence 创建后，再让 Agent 使用完全相同的模块、配置和版本生成正文。历史 evidence 默认禁止覆盖。
 
 ### 常见问题
 
@@ -172,7 +190,7 @@ make evidence MODULE=<Module> CONFIG=<Config> VERSION=vX.Y.Z
 
 ```bash
 make evidence MODULE=Sbuffer CONFIG=DefaultConfig VERSION=v2.0.2
-# 在 OpenCode 中使用 Skill 生成 outputs/、reports/ 和 VERSION_HISTORY.md
+# 使用 chip-dv-spec Skill 生成 outputs/、reports/ 和 VERSION_HISTORY.md
 make render MODULE=Sbuffer VERSION=v2.0.2
 make lint MODULE=Sbuffer VERSION=v2.0.2
 ```
@@ -200,7 +218,7 @@ preflight
 
 ## 文档模型
 
-模板位于 [chip_design_document_template_zh.md](templates/chip-design-document/chip_design_document_template_zh.md)，当前结构版本为 `v2.1.1`。主要内容包括：
+模板位于 [chip_design_document_template_zh.md](templates/chip-design-document/chip_design_document_template_zh.md)，当前结构版本为 `v3.0.0`。生成流程始终读取这个最新模板，不按历史模板版本选择分支。主要内容包括：
 
 - 文档版本、RTL 基线、配置、工具链和 evidence。
 - Chisel Bundle/object 与精确 Verilog 端口映射。
@@ -210,7 +228,9 @@ preflight
 - 可转为 Assert、Assume 或 Cover 的 `FG -> FC -> CK` 检测点。
 - 正常、资源边界和恢复路径的 user-story case。
 
-项目级 Skill 位于 [.opencode/skills/xiangshan-design-document/SKILL.md](.opencode/skills/xiangshan-design-document/SKILL.md)，定义证据优先级、版本策略、源码分析方法、I/O 映射规则、图形门禁和交付标准。
+平台无关的 Skill 主源位于 [skills/chip-dv-spec/SKILL.md](skills/chip-dv-spec/SKILL.md)。详细的文档格式、DV/Testplan、证据和 XiangShan 工程规则按需放在 `references/`；平台目录只提供发现入口。
+
+FC、CK、Case、端口、图表和文档行数由 DUT 行为与验证风险决定，不使用固定数量作为质量门禁。校验器检查当前格式、ID 关联、Style、evidence 和内部一致性。已有历史文档保留原结构；只有新生成或显式指定的文档按当前模板校验。
 
 ## 目录结构
 
@@ -224,7 +244,8 @@ preflight
 |- tools/                            跨平台生成和检查工具
 |- environment/                      Linux/macOS/Docker 环境说明
 |- third_party/XiangShan/            XiangShan Git submodule
-`- .opencode/skills/                 OpenCode 项目 Skill
+|- skills/chip-dv-spec/              平台无关 Skill 主源
+`- .{opencode,claude,codex}/skills/  平台发现适配入口
 ```
 
 `.cache/` 保存可删除的本机工具和 split-RTL 缓存；`evidence/` 是文档版本的一部分，应提交到 Git。
@@ -234,6 +255,9 @@ preflight
 | 命令 | 作用 |
 | --- | --- |
 | `make init` | 初始化 XiangShan 及其递归 submodule。 |
+| `make fm-spec MODULE=<M>` | 在 `rtls/<M>/` 上运行 FM-Agent；已有 workspace 默认恢复。 |
+| `make fm-spec-fresh MODULE=<M>` | 不使用 `--resume` 完整重建该模块的 FM-Agent workspace。 |
+| `make fm-spec-check MODULE=<M>` | 校验 FM-Agent manifest、RTL hash 和输出是否完整且未过期。 |
 | `make preflight MODULE=<M> CONFIG=<C>` | 检查源码、配置、工具和图形环境。 |
 | `make rtl MODULE=<M> CONFIG=<C>` | 生成或复用配置级 split-RTL 缓存。 |
 | `make evidence MODULE=<M> CONFIG=<C> VERSION=<V>` | 创建该版本的 RTL manifest 和端口清单。 |
@@ -260,15 +284,15 @@ RTL 缓存键包含 XiangShan commit、配置、生成 flags、Java/Mill/Espress
 
 - Bash/Python 语法和仓库 Markdown 链接。
 - 文档、报告、history 和 evidence 的版本一致性。
-- FG/FC/CK 唯一性、树表一致性和 Style scope。
+- 当前模板章节顺序、FG/FC/CK 唯一性、树表/追溯一致性和 Style scope。
 - Scala 路径/行号及 Verilog 端口模式。
 - Mermaid 真实解析、浏览器渲染、非空 SVG、source/SVG hash。
 - XiangShan 生成过程不会遗留 submodule 修改。
 
-CI 在 Linux 和 macOS 上运行同一验证入口。提交前请执行：
+CI 在 Linux 和 macOS 上运行同一验证入口。对按照当前模板新生成的版本执行：
 
 ```bash
-make lint MODULE=Sbuffer VERSION=v2.0.1
+make lint MODULE=<Module> VERSION=<current-schema-version>
 ```
 
 ## 参与贡献

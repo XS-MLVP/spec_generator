@@ -24,12 +24,17 @@ E_REF_RE = re.compile(r"\[(E-[A-Z0-9-]+)\]")
 FC_DETAIL_RE = re.compile(r"^\| `<(FC-[A-Z0-9-]+)>` \| `(FG-[A-Z0-9-]+)` \|", re.M)
 CK_DETAIL_RE = re.compile(r"^\| `<(CK-[A-Z0-9-]+)>` \| ([^|]+) \| `(FC-[A-Z0-9-]+)` \|", re.M)
 TEST_PLAN_ROW_RE = re.compile(r"^\| P[0-2] \| `(FC-[A-Z0-9-]+)` \| `(CK-[A-Z0-9-]+)` \| ([^|]+) \|", re.M)
+CK_STATE_ROW_RE = re.compile(r"^\| `<(CK-[A-Z0-9-]+)>` \| ([^|]+) \| `(FC-[A-Z0-9-]+)` \|.*\| (Illustrative|Planned|Generated|Compiled|Proved|Covered) \| ([^|]+) \|$", re.M)
+PROPERTY_STATES = {"Illustrative", "Planned", "Generated", "Compiled", "Proved", "Covered"}
+SIGNOFF_STATES = {"Planned", "Open", "Blocked", "Closed"}
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 MERMAID_RE = re.compile(r"^```mermaid\s*\n(.*?)^```\s*$", re.M | re.S)
 CASE_RE = re.compile(r"^#{3,4} CASE-", re.M)
 COV_DEF_ROW_RE = re.compile(r"^\| `(COV-[A-Z0-9-]+)` \|", re.M)
 COV_REF_RE = re.compile(r"`(COV-[A-Z0-9-]+)`")
 ALLOWED_STYLES = {"Comb", "Seq", "Seq, Symbolic", "Assume", "Cover"}
+PLACEHOLDER_RE = re.compile(r"P-\[NAME\]|(?:CK|E)-\[[A-Z_]+\]|^\s*\[(?:用|说|列|先|按|说明|名称|范围|逻辑|统一|生产者|消费者|模块|目的|阶段|条件|结果|状态|功能|路径|基于)", re.M)
+STALE_MARKER_RE = re.compile(r"\b(?:TODO|TBD)\b")
 
 
 class Validation:
@@ -119,6 +124,7 @@ def main() -> int:
     parser.add_argument("--version", required=True)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--strict-evidence", action="store_true")
+    parser.add_argument("--allow-historical-template", action="store_true")
     args = parser.parse_args()
 
     result = Validation()
@@ -166,6 +172,7 @@ def main() -> int:
     fcs = FC_ROW_RE.findall(text)
     ck_pairs = [(name, style.strip()) for name, style in CK_ROW_RE.findall(text)]
     cks = [name for name, _ in ck_pairs]
+    property_state_rows: list[tuple[str, str, str, str, str]] = []
     result.require(len(fgs) == len(set(fgs)), "duplicate FG labels")
     result.require(len(fcs) == len(set(fcs)), "duplicate FC labels")
     result.require(len(cks) == len(set(cks)), "duplicate CK labels")
@@ -224,7 +231,7 @@ def main() -> int:
         layer_positions = [text.find(heading) for heading in layer_headings]
         result.require(all(position >= 0 for position in layer_positions), "template v3 document missing main/verification/appendix layer")
         result.require(layer_positions == sorted(layer_positions) and len(set(layer_positions)) == 3, "template v3 document layers are out of order")
-        required_headings = (
+        required_headings = [
             "### 文档摘要",
             "### 设计概览",
             "#### 实例能力矩阵",
@@ -236,16 +243,21 @@ def main() -> int:
             "### 签核与开放项",
             "### 附录 D：证据索引",
             "### 附录 F：FC / CK 完整追溯",
-        ) if template_version >= (3, 1) else (
+        ] if template_version >= (3, 1) else [
             "### 阅读导引",
             "#### 数据生产者与消费者",
             "#### 关键概念速览",
             "#### 逻辑接口约定",
             "### Coverage 汇总",
             "### Test Plan 与场景",
-        )
+        ]
+        if template_version >= (3, 3, 0):
+            required_headings.append("### Coverage Design Contract")
         for heading in required_headings:
             result.require(heading in text, f"template v3 required section missing: {heading}")
+        result.require("<!-- MAINTAINER" not in text and "<!-- GENERATOR" not in text and "<!-- CONDITIONAL" not in text, "generated document contains template directive comments")
+        result.require(not PLACEHOLDER_RE.search(text), "generated document contains unreplaced template placeholder")
+        result.require(not STALE_MARKER_RE.search(text), "generated document contains TODO/TBD marker; use OPEN-* instead")
 
         if template_version >= (3, 1):
             summary_match = re.search(r"^### 文档摘要\s*$\n(.*?)(?=^### |\Z)", text, re.M | re.S)
@@ -295,12 +307,20 @@ def main() -> int:
             result.require(len(E_DEF_ROW_RE.findall(evidence_scope)) == len(evidence_definitions), "duplicate E-* definitions")
             result.require(not (evidence_references - evidence_definitions), f"unresolved E-* references: {sorted(evidence_references-evidence_definitions)}")
 
+            applicability_lines = [line for line in text.splitlines() if line.startswith("适用性：")]
+            result.require(bool(applicability_lines), "template v3.1 requires explicit applicability decisions")
+            result.require(all("理由：" in line and "证据：" in line for line in applicability_lines), "applicability decision missing reason or evidence")
+
             test_plan_match = re.search(r"^### Test Plan\s*$\n(.*?)(?=^### |\Z)", text, re.M | re.S)
             test_plan_scope = test_plan_match.group(1) if test_plan_match else ""
             test_plan_fcs = set(re.findall(r"`(FC-[A-Z0-9-]+)`", test_plan_scope))
             test_plan_cks = set(re.findall(r"`(CK-[A-Z0-9-]+)`", test_plan_scope))
             result.require(set(fcs) <= test_plan_fcs, f"FC missing from Test Plan: {sorted(set(fcs)-test_plan_fcs)}")
             result.require(set(cks) <= test_plan_cks, f"CK missing from Test Plan: {sorted(set(cks)-test_plan_cks)}")
+            plan_rows = TEST_PLAN_ROW_RE.findall(test_plan_scope)
+            plan_ck_names = [ck for _, ck, _ in plan_rows]
+            result.require(len(plan_ck_names) == len(set(plan_ck_names)), "each CK must appear at most once in Test Plan")
+            result.require(set(plan_ck_names) == set(cks), f"Test Plan CK rows incomplete: missing={sorted(set(cks)-set(plan_ck_names))} extra={sorted(set(plan_ck_names)-set(cks))}")
             ck_registry = {ck: (style, fc) for ck, style, fc in ck_details}
             for fc, ck, raw_style in TEST_PLAN_ROW_RE.findall(test_plan_scope):
                 style = raw_style.strip()
@@ -311,6 +331,21 @@ def main() -> int:
             for line in test_plan_scope.splitlines():
                 if re.match(r"^\| P[0-2] \|", line):
                     result.require(bool(P_REF_RE.search(line)), f"Test Plan row missing P-* reference: {line}")
+
+            state_rows = CK_STATE_ROW_RE.findall(text)
+            if template_version >= (3, 2, 0):
+                result.require(len(state_rows) == len(cks), "template v3.2 requires property and signoff states for every CK")
+            if state_rows:
+                property_state_rows = state_rows
+                result.require(len(state_rows) == len(cks), "CK property-state registry is incomplete")
+                result.require(all(state in PROPERTY_STATES for _, _, _, state, _ in state_rows), "illegal CK property implementation state")
+                result.require(all(signoff.strip() in SIGNOFF_STATES for _, _, _, _, signoff in state_rows), "illegal CK signoff state")
+                for ck, style, _, state, signoff in state_rows:
+                    if signoff.strip() == "Closed":
+                        required_state = "Covered" if style.strip() == "Cover" else "Proved"
+                        result.require(state == required_state, f"closed CK {ck} requires property state {required_state}")
+                if "Representative formulas only" in text:
+                    result.require(not re.search(r"属性(?:节|契约).*完整", report_text), "representative formulas cannot be reported as a complete property contract")
 
             verification_end = layer_positions[2] if layer_positions[2] >= 0 else len(text)
             reader_facing = text[:verification_end]
@@ -323,16 +358,46 @@ def main() -> int:
             coverage_references = set(COV_REF_RE.findall(text))
             result.require(bool(coverage_definitions), "template v3.1 Coverage Summary has no COV-* definitions")
             result.require(not (coverage_references - coverage_definitions), f"unresolved COV-* references: {sorted(coverage_references-coverage_definitions)}")
+            execution_scope = test_plan_scope + text[text.find("### 测试场景") : text.find("### 签核与开放项")]
+            executed_coverage = set(COV_REF_RE.findall(execution_scope))
+            result.require(coverage_definitions <= executed_coverage, f"Coverage IDs unused by Test Plan/cases: {sorted(coverage_definitions-executed_coverage)}")
+            for line in coverage_scope.splitlines():
+                if not line.startswith("| `COV-"):
+                    continue
+                result.require(bool(P_REF_RE.search(line)), f"Coverage row missing P-* reference: {line}")
+                result.require(bool(re.search(r"`FC-[A-Z0-9-]+`", line)), f"Coverage row missing FC reference: {line}")
+                result.require(bool(re.search(r"`CK-[A-Z0-9-]+`", line)), f"Coverage row missing CK reference: {line}")
+                coverage_fcs = set(re.findall(r"`(FC-[A-Z0-9-]+)`", line))
+                coverage_cks = set(re.findall(r"`(CK-[A-Z0-9-]+)`", line))
+                result.require(coverage_fcs <= set(fcs), f"Coverage row references unknown FC: {sorted(coverage_fcs-set(fcs))}")
+                result.require(coverage_cks <= set(cks), f"Coverage row references unknown CK: {sorted(coverage_cks-set(cks))}")
+                if template_version >= (3, 3, 0):
+                    fields = [field.strip() for field in line.strip("|").split("|")]
+                    result.require(len(fields) == 10, f"template v3.3 Coverage row must have 10 fields: {line}")
+                    if len(fields) == 10:
+                        for field_index, field_name in ((3, "observation event"), (4, "important values/bins"), (5, "dependencies/crosses"), (6, "illegal/ignore policy"), (7, "validity guard"), (8, "closure criterion")):
+                            result.require(bool(fields[field_index]), f"Coverage row missing {field_name}: {fields[0]}")
             case_matches = list(CASE_RE.finditer(text))
             for index, case_match in enumerate(case_matches):
                 case_end = case_matches[index + 1].start() if index + 1 < len(case_matches) else text.find("\n### 签核与开放项", case_match.start())
                 case_scope = text[case_match.start() : case_end if case_end >= 0 else None]
                 result.require(bool(COV_REF_RE.search(case_scope)), f"scenario case missing Coverage reference: {case_match.group(0)}")
 
-    if existing_versions and current_template_version:
-        latest_version = max(existing_versions, key=lambda version: tuple(map(int, version[1:].split("."))))
-        if args.version == latest_version:
-            result.require(template_version == current_template_version, f"latest document template {template_version} != current template {current_template_version}")
+            if template_version >= (3, 2, 0):
+                appendix_a_match = re.search(r"^### 附录 A：文档控制与范围裁定\s*$\n(.*?)(?=^### |\Z)", text, re.M | re.S)
+                appendix_a_scope = appendix_a_match.group(1) if appendix_a_match else ""
+                applicability_rows = []
+                for line in appendix_a_scope.splitlines():
+                    fields = [field.strip() for field in line.strip("|").split("|")]
+                    if len(fields) == 3 and fields[1] in {"已应用", "不适用"}:
+                        applicability_rows.append(fields)
+                result.require(bool(applicability_rows), "template v3.2 has no structured applicability rows")
+                for topic, decision, reason in applicability_rows:
+                    result.require(bool(reason), f"applicability row missing reason: {topic}")
+                    result.require(bool(E_REF_RE.search(reason)), f"applicability row missing E-* evidence: {topic}")
+
+    if template_major >= 3 and current_template_version and not args.allow_historical_template:
+        result.require(template_version == current_template_version, f"document template {template_version} != current template {current_template_version}; use --allow-historical-template only for archived documents")
 
     result.require(text.count("```") % 2 == 0, "unbalanced Markdown fences")
     result.require('subgraph DUT["DUT: ' in text, "architecture DUT subgraph missing")
@@ -363,7 +428,9 @@ def main() -> int:
             result.require(int(claimed.group(1)) == len(ports), "document port count does not match manifest")
         checked_tokens: set[str] = set()
         covered_ports: set[str] = set()
-        for line in text.splitlines():
+        mapping_match = re.search(r"^### 附录 B：逻辑接口与 RTL 映射\s*$\n(.*?)(?=^### |\Z)", text, re.M | re.S)
+        mapping_scope = mapping_match.group(1) if mapping_match else text
+        for line in mapping_scope.splitlines():
             if any(marker in line for marker in ("未生成", "Elided", "不含", "裁剪")):
                 continue
             for token in re.findall(r"`((?:io_[A-Za-z0-9_\[\]*]+|clock|reset))`", line):
@@ -378,6 +445,25 @@ def main() -> int:
                         result.require(values == set(range(max(values) + 1)), f"non-contiguous indices for {token} marker [{marker}]: {sorted(values)}")
         if args.strict_evidence and template_version >= (3, 1, 0):
             result.require(port_names <= covered_ports, f"ports.csv leaves missing from document mapping: {sorted(port_names-covered_ports)}")
+            for line in mapping_scope.splitlines():
+                if not line.startswith("| `IO-") or "精确 Verilog I/O" in line:
+                    continue
+                fields = [field.strip() for field in line.strip("|").split("|")]
+                if len(fields) < 9 or fields[5] != "Generated":
+                    continue
+                direction_width = fields[4].split(",", 1)[0].strip()
+                direction, _, width_text = direction_width.partition("/")
+                expected_direction = {"I": "input", "O": "output"}.get(direction.strip())
+                width_match = re.match(r"(\d+)", width_text.strip())
+                token_match = re.search(r"`([^`]+)`", fields[6])
+                if not expected_direction or not width_match or not token_match:
+                    continue
+                matches, _ = match_port_pattern(token_match.group(1), port_names)
+                expected_width = int(width_match.group(1))
+                for port in ports:
+                    if port["name"] in matches:
+                        result.require(port["direction"] == expected_direction, f"direction mismatch for documented pattern {token_match.group(1)}")
+                        result.require(int(port["width"]) == expected_width, f"width mismatch for documented pattern {token_match.group(1)}")
     elif args.strict_evidence:
         result.errors.append(f"missing evidence manifest/ports: {evidence}")
     else:
@@ -406,7 +492,11 @@ def main() -> int:
     elif args.strict_evidence and requires_render_evidence:
         result.errors.append(f"missing Mermaid render evidence: {diagram_manifest_path.parent}")
 
-    print(f"FG={len(fgs)} FC={len(fcs)} CK={len(cks)} cases={len(CASE_RE.findall(text))}")
+    state_summary = ""
+    if property_state_rows:
+        counts = {state: sum(row[3] == state for row in property_state_rows) for state in PROPERTY_STATES}
+        state_summary = " " + " ".join(f"{state}={count}" for state, count in sorted(counts.items()))
+    print(f"FG={len(fgs)} FC={len(fcs)} CK={len(cks)} cases={len(CASE_RE.findall(text))}{state_summary}")
     for warning in result.warnings:
         print(f"WARN: {warning}", file=sys.stderr)
     for error in result.errors:

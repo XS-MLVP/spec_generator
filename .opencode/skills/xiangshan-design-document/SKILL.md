@@ -24,11 +24,15 @@ Resolve all paths from the documentation repository root:
 
 Create the module-specific input, output, and report directories when needed. Do not put generated files at repository root. Do not modify XiangShan source merely to make documentation generation easier.
 
+Module inputs and generated artifacts under `inputs/`, `outputs/`, `reports/<Module>/`, and `evidence/` are local user assets and are ignored by this tool repository. Generate and validate them normally, but do not stage or commit them. Users who need retention must archive them outside this repository. Generic maintenance material such as `reports/template/` remains repository-owned.
+
 ## Document Versioning
 
 Every generated design document and its quality report must have one shared semantic document version. A generated artifact without a version in both its filename and document-control table is invalid.
 
 The template has its own visible `模板结构版本`. Record that value in the generated document as `使用模板版本`. A backward-incompatible template structure change is evidence for a document MAJOR increment; do not infer this from the template modification date alone.
+
+New documents must use the exact current template version. `--allow-historical-template` is only for validating an already archived document; never use it to make a newly generated document pass with a stale template.
 
 Use `vMAJOR.MINOR.PATCH`, for example `v1.2.3`. This is the documentation version, not the XiangShan RTL version. Record the XiangShan commit and configuration separately.
 
@@ -55,6 +59,7 @@ Rules:
 - If the user explicitly requests a valid version greater than all existing versions, use it and record the reason. Reject reuse or downgrade of an existing version unless the user explicitly asks to replace history.
 - Every generation creates a new version. Never overwrite an older versioned document or report.
 - The design document and quality report must use the same version.
+- After evidence and diagrams exist, run `make metadata MODULE=<Module> VERSION=<version>` to synchronize template version, commit, configuration, RTL hash/count, diagram metadata, and generation date. This command must preserve an existing VERSION_HISTORY row rather than replacing its semantic change summary.
 - Compare against the immediately preceding version and summarize actual differences. Do not infer a change category only from timestamps.
 - A newer XiangShan commit does not automatically require MAJOR. Classify by the resulting document contract, normally MINOR for behavioral change and PATCH for evidence-only change.
 
@@ -118,6 +123,23 @@ Treat HTML comments in the template as normative generator directives, not prose
 - `CONDITIONAL` states an applicability decision. If applicable, generate the requested content; otherwise keep a concise `不适用` conclusion with evidence instead of silently deleting the topic.
 
 Visible blockquotes explain the document to readers. HTML comments instruct the generator. Do not move audit-only instructions into visible prose, and do not hide reader-critical behavior solely in comments.
+
+The generated document must not contain template directive comments or unreplaced instructional placeholders. For every conditional topic, preserve an explicit `适用性：已应用` or `适用性：不适用` decision, a reason, and an `[E-*]` reference.
+
+## Coverage Practice Principles
+
+The repository may contain selected examples under `references/`. They are writing and methodology references, never implementation evidence. The Coverage Cookbook is not a Spec template; absorb these general lessons without copying its APB, UART, datapath, or SoC chapter structure:
+
+- Define one short, positive, unambiguous coverage requirement before choosing its implementation.
+- For every `COV-*`, state the observation event, valid and invalid sampling conditions, important values or ranges, dependencies/crosses, illegal or ignored combinations, and closure artifact.
+- Sample observed successful behavior or a checker-confirmed transaction, not stimulus intent alone. Track negative/error coverage separately from positive coverage.
+- Use temporal coverage for event order, handshakes, and state transitions; use data coverage for meaningful values and configurations; combine them only with an explicit sampling event.
+- Avoid default bins and unbounded cross products when they obscure analysis. Select named representative, boundary, and risk-driven bins and explain exclusions.
+- Give coverage objects, instances, bins, and crosses stable names that explain the measured behavior. An auto-generated number is not an adequate description.
+- Organize plans by data flow and refine a small number of behavior families. One family-level sequence is preferable to enumerating equivalent traces.
+- Each Test Plan item has one clear requirement and at least one closure link to an assertion, cover property, covergroup, scoreboard, test, or regression.
+
+These principles improve readability and diagnosis. They do not override the evidence hierarchy or turn a coverage goal into a DUT fact.
 
 Follow the template's three layers and keep their responsibilities distinct:
 
@@ -199,6 +221,15 @@ Assign stable evidence IDs such as `[E-BEH-01]`, `[E-IO-02]`, and `[E-CONFIG-03]
 - Evidence IDs support a rule; they do not become alternate descriptions of the behavior.
 - FACT and OPEN records reference evidence IDs and `P-*` rules without duplicating the algorithm.
 
+### Property Implementation States
+
+Use the template states exactly: `Illustrative`, `Planned`, `Generated`, `Compiled`, `Proved`, and `Covered`. Record one property implementation state and one independent signoff state per CK in appendix F.
+
+- `Illustrative` means a representative formula only and cannot support a complete-property or compile claim.
+- `Planned` means the CK exists in the plan but its independent executable formula is not complete.
+- `Generated` requires a separate formula for that CK. `Compiled`, `Proved`, and `Covered` require the corresponding tool result and archived log.
+- Do not describe a representative formula section as a complete CK contract. The quality report must state counts by property state and lower the score when formulas remain Illustrative or Planned.
+
 ## Workflow
 
 ### 0. Preflight the Environment
@@ -263,6 +294,8 @@ Appendix B must map each main-body logical name and include both implementation 
 - Configuration status: whether the Chisel field exists, whether the selected configuration emitted a Verilog leaf, and why it was generated, constant-folded, feature-disabled, or dead-port-eliminated.
 
 Map every externally visible leaf, including each generated Vec element. A summary row may group a regular array only when the exact naming pattern and index range are demonstrated by the generated RTL.
+
+After drafting appendix B, expand every Generated RTL pattern and compare the resulting `(name, direction, width)` set bidirectionally with `ports.csv`. A document is not I/O-complete merely because every cited token matches some port. Reject extra matches, missing matches, direction mismatches, and width mismatches.
 
 Never derive a Verilog name solely from a Chisel path. Firtool naming, flattening, deduplication, prefixes, and configuration can change it. If matching elaborated RTL is unavailable:
 
@@ -338,6 +371,7 @@ Follow the current template exactly.
 - Render labels visibly with backticks: `` `<FG-NAME>` ``, `` `<FC-NAME>` ``, `` `<CK-NAME>` ``. Bare angle-bracket labels can disappear as HTML.
 - Keep FG boundary descriptions short and risk-oriented.
 - Put all executable verification work in one Test Plan table. Each row links priority, one FC, one independent CK, Style, `P-*`, mechanism, stimulus, observable result, Coverage/scenario, and closure criterion.
+- Include the CK's property implementation state in the audit registry. The Test Plan status/closure text must not imply more than that state supports.
 - Put the complete FC registry and CK registry in appendix F for UCAgent and audit. Do not place paired FC and CK tables in the main reading path.
 - Define each FC as a verification objective, not another design description.
 - Define each CK as one independently implementable property. Put detailed Assume, Assert, and Cover formulas together in `形式化属性契约`.
@@ -349,6 +383,7 @@ Follow the current template exactly.
 - Parameter/feature gating requires both enabled behavior and disabled no-side-effect checks.
 - Use reviewed harness parameters for unknown latency. Never write vague timing such as “later” or “after taking effect.”
 - Maintain a Coverage Summary that maps each coverage goal to `P-*`, FC, and CK IDs and gives a measurable closure criterion.
+- For every Coverage Summary row, define the checker-qualified observation event, important named bins/ranges, functional crosses, illegal/ignored combinations, invalid sampling guard, and closure implementation. Estimate or bound cross-product size.
 
 Before finalizing, ensure the label tree, Test Plan, FC registry, CK registry, property formulas, Coverage Summary, and scenarios agree.
 
@@ -360,9 +395,21 @@ The verification-plan Test Plan must contain user-story cases covering at least:
 2. A resource boundary or backpressure condition.
 3. An error, replay, flush, cancellation, or recovery path when the DUT supports one.
 
-Each case includes a goal, actors, preconditions, ordered actor actions, related `P-*`/CK/Coverage IDs, and measurable acceptance criteria. Point exact stimulus mapping to appendix B. Cases explain collaboration across rules but do not replace formal CKs and must not repeat a rule's full mechanism.
+Each case includes a goal, actors, preconditions, ordered actor actions, related `P-*`/CK/Coverage IDs, at least one `COV-*` ID, and measurable acceptance criteria. Point exact stimulus mapping to appendix B. Cases explain collaboration across rules but do not replace formal CKs and must not repeat a rule's full mechanism.
 
-### 10. Produce the Quality Report
+### 10. Synchronize Artifact Metadata
+
+Once the design document, report, RTL manifest, and diagram manifest exist, run:
+
+```bash
+make metadata MODULE=<Module> VERSION=<version>
+```
+
+The metadata helper is authoritative for generated values only: template version, XiangShan commit, selected configuration, RTL generation status, RTL SHA-256, port counts, diagram count/renderer, and generation date. It must not rewrite behavioral prose, OPEN conclusions, version-change summaries, or an existing history row. Review its diff before validation.
+
+When the version has no history row yet, also provide `CHANGE_TYPE=Major|Minor|Patch` and `SUMMARY="..."`. The helper refuses to invent those semantic fields. On reruns it preserves the existing history row unchanged.
+
+### 11. Produce the Quality Report
 
 Create `reports/<Module>/<Module>_document_quality_review_v<MAJOR.MINOR.PATCH>.md` in the same run. Report:
 
@@ -417,6 +464,8 @@ The checker is the minimum gate. Also check:
 - An instance-capability matrix exists and implementation rules do not mix common mechanisms with exact instance/port inventories.
 - Reader-facing prose uses logical names; no main-body prose sentence contains three or more exact RTL port names.
 - Reader-facing sections use `[E-*]`; every reference resolves in appendix D and raw source paths stay out of the main body.
+- Generated documents contain no template directive comments or unreplaced placeholders; conditional topics use the standard `适用性` decision format.
+- Every CK has an explicit property implementation state separate from its signoff state, and the quality report summarizes those states.
 - Every FG/FC/CK label is visible and unique.
 - Every FC in the tree has one appendix registry row, at least one Test Plan row and CK, and a `P-*` reference.
 - Every CK has a legal Style, observation point, and evidence.
@@ -434,4 +483,4 @@ Use parsers or repository search for these checks instead of visual counting. If
 
 ## Completion Standard
 
-The task is complete only when the versioned design document, same-version quality report, updated `VERSION_HISTORY.md`, versioned RTL evidence, current Mermaid SVG/manifest evidence, and checker/lint results are written. Exact Verilog I/O and actual diagram rendering are hard evidence requirements. When elaboration or rendering is unavailable, the document status must remain Draft and the corresponding signoff must remain blocked.
+The task is complete only when the local versioned design document, same-version quality report, updated `VERSION_HISTORY.md`, versioned RTL evidence, current Mermaid SVG/manifest evidence, and checker/lint results are written. These module artifacts are not committed to the tool repository. Exact Verilog I/O and actual diagram rendering remain hard evidence requirements. When elaboration or rendering is unavailable, the document status must remain Draft and the corresponding signoff must remain blocked.

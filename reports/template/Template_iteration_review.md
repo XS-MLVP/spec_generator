@@ -81,3 +81,17 @@
 ## 2026-09-03 模板指令注释修订
 
 模板结构版本由 v3.1.0 升为 v3.1.1。该 Patch 不改变章节或表格 schema，统一定义 `MAINTAINER`、`GENERATOR` 和 `CONDITIONAL` 三类 HTML 指令，并在摘要、逻辑命名、图形、实例矩阵、`P-*`、Test Plan、Coverage、属性契约和附录边界补充生成约束。目标是防止占位示例泄漏、条件章节被静默删除、正文重新出现精确端口/源码路径，以及 Planned 项被误标为已签核。
+
+## 2026-09-03 元数据与追溯自动化修订
+
+新增 `tools/update_document_metadata.py` 和 `make metadata` 入口，从 matching evidence manifest 与 diagram manifest 同步模板版本、commit、配置、RTL 状态、hash、端口数、图数量和生成日期。已有 VERSION_HISTORY 行不会被元数据同步覆盖。严格校验同时检查 manifest 基本字段、生成文档配置/hash 一致性、端口方向/位宽及分组模式的双向覆盖，并拒绝模板指令、占位符、TODO/TBD 泄漏。
+
+属性验证状态采用 `Illustrative`、`Planned`、`Generated`、`Compiled`、`Proved`、`Covered` 六级状态；代表性公式只能作为建模说明，必须在质量报告中单独统计，不能表述为逐 CK 完整契约。
+
+模板结构版本由 v3.1.1 升为 v3.2.0。新增 CK 属性实现状态与签核状态字段、统一适用性裁定协议，属于兼容字段扩展。新文档默认必须精确使用当前模板；归档文档只能通过显式 `--allow-historical-template` 验证。
+
+## 2026-09-03 Coverage Practice 经验吸收
+
+参考 `references/coverage_cookbook.pdf` 的 Coverage Examples(Practice)，但不复制其 APB、UART、datapath 或 SoC 章节结构。本轮将可迁移经验写入模板和 Skill：覆盖项先定义短而明确的目标，再记录观察事件、有效/无效采样条件、重要取值或分箱、依赖/交叉、非法/忽略组合和闭合对象；Coverage 必须基于通过 checker 的观察结果，负向测试单独统计，宽域组合必须有风险驱动的有限抽象，实例/分箱/交叉名称必须可用于分析。
+
+模板结构版本由 v3.2.0 升为 v3.3.0，属于兼容字段和方法约束扩展。

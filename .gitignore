@@ -3,11 +3,19 @@
 Thumbs.db
 Desktop.ini
 
-# Reproducible local tool/bootstrap and RTL caches. Versioned evidence belongs
-# under evidence/ and must not be ignored.
+# Reproducible local tool/bootstrap and RTL caches.
 .cache/
 .tmp/
 tmp/
+
+# User-provided module inputs and generated module artifacts stay local.
+# Generic template-maintenance reports remain tracked.
+inputs/*
+outputs/*
+evidence/*
+reports/*
+!reports/template/
+!reports/template/**
 
 # XiangShan generated products stay inside the submodule.
 third_party/XiangShan/build/

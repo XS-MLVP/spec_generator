@@ -46,10 +46,13 @@ docker compose -f environment/compose.yaml run --rm docs make preflight MODULE=S
 
 ```bash
 make init
-make preflight MODULE=Sbuffer CONFIG=DefaultConfig
-make evidence MODULE=Sbuffer CONFIG=DefaultConfig VERSION=v2.0.2  # 使用下一个未占用版本
-make render MODULE=Sbuffer VERSION=v2.0.2
-make validate MODULE=Sbuffer VERSION=v2.0.1
+make preflight MODULE=<Module> CONFIG=<Config>
+make evidence MODULE=<Module> CONFIG=<Config> VERSION=<version>
+# 使用 Skill 生成同版本正文和质量报告
+make render MODULE=<Module> VERSION=<version>
+make lint MODULE=<Module> VERSION=<version>
 ```
 
-`.cache/` 是可删除的本机缓存；`evidence/` 是需要纳入 Git 的版本化证据。
+维护模板和工具而不生成模块文档时运行 `make repo-lint` 与 `make template-check`。CI 只使用这两个仓库自有入口，不依赖被 `.gitignore` 排除的本地模块资产。
+
+`.cache/` 是可删除的本机缓存；`evidence/` 是模块文档的本地版本化证据，但与 `inputs/`、`outputs/` 和模块级 `reports/` 一样不纳入本工具仓库。需要长期保留时，应复制到项目外的受控制品存储。

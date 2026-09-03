@@ -1,7 +1,7 @@
 # [DUT 名称] 设计与功能检测点文档
 
 <!-- MAINTAINER: 模板结构版本描述字段和章节协议，不是 DUT 文档版本。注释/措辞增强递增 PATCH；新增兼容字段递增 MINOR；破坏解析器或章节协议递增 MAJOR。 -->
-> 模板结构版本：v3.1.1
+> 模板结构版本：v3.3.0
 >
 > 文档版本：[vMAJOR.MINOR.PATCH]
 >
@@ -217,17 +217,46 @@ DUT
 
 ### Coverage Summary
 
-<!-- GENERATOR: Coverage 是风险闭环，不是 CK 的重复清单。每行给出可采样条件和可判定关闭标准；未实际运行时状态不得写 Closed。 -->
-| Coverage ID | 风险与目标 | 关联 P / FC / CK | 采样或交叉条件 | 关闭标准 | 状态 |
-| --- | --- | --- | --- | --- | --- |
-| `COV-NORMAL` | [正常数据流可达] | [`P-*`, `FC-*`, `CK-*`] | [条件] | [命中要求] | Planned |
-| `COV-BOUNDARY` | [资源边界或竞争可达] | [`P-*`, `FC-*`, `CK-*`] | [条件] | [命中要求] | Planned |
-| `COV-RECOVERY` | [异常或恢复路径可达] | [`P-*`, `FC-*`, `CK-*`] | [条件] | [命中要求] | Planned |
+<!-- GENERATOR: Coverage 是风险闭环，不是 CK 的重复清单。每行同时说明观察事件、重要取值、依赖/交叉、非法/忽略条件和有效性保护；未实际运行时状态不得写 Closed。 -->
+| Coverage ID | 风险与目标 | 关联 P / FC / CK | 观察事件 | 重要取值 / 分箱 | 依赖 / 交叉 | 非法 / 忽略条件 | 有效性保护 | 关闭标准 | 状态 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `COV-NORMAL` | [正常数据流可达] | [`P-*`, `FC-*`, `CK-*`] | [已通过检查的完成事件] | [代表性值或范围] | [必要交叉] | [不可发生值] | [结果有效且 checker 通过后采样] | [命中要求] | Planned |
+| `COV-BOUNDARY` | [资源边界或竞争可达] | [`P-*`, `FC-*`, `CK-*`] | [边界完成事件] | [满/空/最大并发等] | [边界 x 操作类型] | [不适用组合] | [有效结果] | [命中要求] | Planned |
+| `COV-RECOVERY` | [异常或恢复路径可达] | [`P-*`, `FC-*`, `CK-*`] | [恢复完成事件] | [错误/重放/冲刷类别] | [恢复类型 x 起始状态] | [非法激励单独统计] | [恢复 checker 通过] | [命中要求] | Planned |
+
+### Coverage Design Contract
+
+<!-- GENERATOR: 每个 COV-* 都要回答目标行为、观察事件、有效/无效条件、重要取值、依赖交叉、非法/忽略组合和闭合对象。不要对宽总线或大数组无理由展开全部 2^N 组合。 -->
+
+对每个 `COV-*`，按以下顺序写一小段说明：
+
+1. **目标行为**：要证明哪个 `P-*` 已被一次成功的 Test Plan 场景观察到。
+2. **观察事件**：采样发生在哪个 DUT 输出、完成、状态转换或 scoreboard-confirmed transaction 上，不能只写“输入已驱动”。
+3. **有效性与无效性**：什么时候数据有效、什么时候禁止采样；失败测试和负向测试单独统计。
+4. **重要取值**：列出有意义的离散值、边界值或有限范围；连续/宽域使用有理由的分箱。
+5. **依赖与交叉**：只交叉有功能关系且可闭合的维度，并估算组合规模。
+6. **非法与忽略**：非法条件用于暴露环境或设计错误；已知不适用组合明确标记 `ignore`。
+7. **闭合对象**：关联 assertion、cover property、covergroup、scoreboard、directed test 或 regression。
+
+Coverage、实例、分箱和交叉名称必须直接说明其来源和含义，例如 `forward_active_over_inflight`、`replay_to_retry`、`entry_full`；禁止使用无法分析的自动编号作为唯一解释。
 
 ### 形式化属性契约
 
 <!-- GENERATOR: 以下代码是结构示例，不是可直接交付的 SVA。生成文档必须替换逻辑占位符；若尚无 harness 映射，写伪代码并登记 OPEN-VERIFY，禁止伪称已编译。 -->
 > 本节集中定义时钟、复位、history-valid、X 处理、Assume、Assert 和 Cover。属性公式引用逻辑名及 `P-*`；精确 RTL/bind 映射见附录 B、D、F。
+
+#### 属性实现状态
+
+<!-- GENERATOR: 每个 CK 在附录 F 维护唯一状态。Illustrative 只说明建模方向；只有 Generated、Compiled、Proved 或 Covered 才能支持相应签核。属性状态和签核状态必须分开记录。 -->
+
+| 状态 | 含义 | 允许的签核结论 |
+| --- | --- | --- |
+| Illustrative | 代表性公式或伪代码，仅解释建模方法 | 不得宣称属性已生成或可编译 |
+| Planned | CK 已定义，但逐 CK 公式尚未完成 | 只能计入验证计划 |
+| Generated | 每个 CK 已有独立公式，但尚未编译 | 不得宣称编译、证明或覆盖通过 |
+| Compiled | 逐 CK 属性已通过语法/绑定编译 | 不代表 prove/cover 通过 |
+| Proved | Assert/Assume 已完成目标证明 | 记录工具和日志 |
+| Covered | Cover 已命中并保存日志 | 记录场景和日志 |
 
 **建模约定**
 
@@ -312,7 +341,7 @@ cover property (@(posedge clock) disable iff (reset) boundary_precondition ##1 b
 | 项目 | 内容 |
 | --- | --- |
 | 文档版本 | [vMAJOR.MINOR.PATCH] |
-| 使用模板版本 | v3.1.1 |
+| 使用模板版本 | v3.3.0 |
 | 前一版本 | [版本及相对链接 / None（首次版本）] |
 | 版本变更类型 | [Major / Minor / Patch：原因] |
 | DUT / Chisel 顶层 | [名称] / [E-TOP-01] |
@@ -335,6 +364,9 @@ cover property (@(posedge clock) disable iff (reset) boundary_precondition ##1 b
 | 缓存查找 / 缺失 / 重填 | [裁定] | [理由 / 章节] |
 | 异常 / 恢复 / flush | [裁定] | [理由 / 章节] |
 | 特性门控 | [裁定] | [理由 / 章节] |
+
+<!-- CONDITIONAL: 条件主题不可静默删除。每一行必须填写“已应用”或“不适用”；不适用时必须说明源码、配置或模块边界理由，并引用 [E-*]。 -->
+适用性裁定格式：`适用性：[已应用 / 不适用]；理由：[基于源码、配置或边界的理由]；证据：[E-*]`。
 
 ### 附录 B：逻辑接口与 RTL 映射
 
@@ -396,11 +428,11 @@ cover property (@(posedge clock) disable iff (reset) boundary_precondition ##1 b
 | `<FC-BEHAVIOR>` | `FG-CORE` | [核心行为风险] | `P-[NAME]` | [P0 / CK-EVENT-RESULT] |
 | `<FC-REACHABILITY>` | `FG-COVERAGE` | [关键路径可达] | `P-[NAME]` | [P1 / CK-COVER-BOUNDARY] |
 
-| CK 标签 | Style | 所属 FC | 独立性质 | 逻辑观测点 | RTL / bind 对应 | 状态 |
-| --- | --- | --- | --- | --- | --- | --- |
-| `<CK-API-INPUT-KNOWN>` | Assume | `FC-INPUT-CONTRACT` | [有效输入非 X] | `producer.data` | [附录 B / D] | Planned |
-| `<CK-EVENT-RESULT>` | Seq | `FC-BEHAVIOR` | [触发后结果正确] | `consumer.result` | [附录 B / D] | Planned |
-| `<CK-COVER-BOUNDARY>` | Cover | `FC-REACHABILITY` | [边界路径可达] | [逻辑状态] | [附录 D] | Planned |
+| CK 标签 | Style | 所属 FC | 独立性质 | 逻辑观测点 | RTL / bind 对应 | 属性实现状态 | 签核状态 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `<CK-API-INPUT-KNOWN>` | Assume | `FC-INPUT-CONTRACT` | [有效输入非 X] | `producer.data` | [附录 B / D] | Planned | Planned |
+| `<CK-EVENT-RESULT>` | Seq | `FC-BEHAVIOR` | [触发后结果正确] | `consumer.result` | [附录 B / D] | Planned | Planned |
+| `<CK-COVER-BOUNDARY>` | Cover | `FC-REACHABILITY` | [边界路径可达] | [逻辑状态] | [附录 D] | Planned | Planned |
 
 ### 附录 G：签核清单
 

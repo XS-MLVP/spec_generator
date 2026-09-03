@@ -1,8 +1,11 @@
 MODULE ?= Sbuffer
 CONFIG ?= DefaultConfig
 VERSION ?= v2.0.1
+ALLOW_HISTORICAL_TEMPLATE ?=
+CHANGE_TYPE ?=
+SUMMARY ?=
 
-.PHONY: init preflight rtl evidence render render-check validate lint clean-cache
+.PHONY: init preflight rtl evidence render render-check validate metadata repo-lint template-check lint clean-cache
 
 init:
 	git submodule update --init --recursive
@@ -24,13 +27,23 @@ render-check:
 	./tools/validate_mermaid.py --document "outputs/$(MODULE)/$(MODULE)_design_document_zh_$(VERSION).md" --output-dir ".cache/mermaid-check/$(MODULE)/$(VERSION)"
 
 validate:
-	./tools/validate_document.py --module "$(MODULE)" --version "$(VERSION)" --strict-evidence
+	./tools/validate_document.py --module "$(MODULE)" --version "$(VERSION)" --strict-evidence $(ALLOW_HISTORICAL_TEMPLATE)
 
-lint:
+metadata:
+	python3 tools/update_document_metadata.py --module "$(MODULE)" --version "$(VERSION)" --update-history $(if $(CHANGE_TYPE),--change-type "$(CHANGE_TYPE)") $(if $(SUMMARY),--summary "$(SUMMARY)")
+
+repo-lint:
 	bash -n tools/*.sh
 	python3 -m py_compile tools/*.py
-	$(MAKE) render-check MODULE="$(MODULE)" VERSION="$(VERSION)"
 	./tools/validate_repository.py
+
+template-check:
+	rm -rf ".cache/mermaid-check/template"
+	./tools/validate_mermaid.py --document "templates/chip-design-document/chip_design_document_template_zh.md" --output-dir ".cache/mermaid-check/template"
+
+lint:
+	$(MAKE) repo-lint
+	$(MAKE) render-check MODULE="$(MODULE)" VERSION="$(VERSION)"
 	$(MAKE) validate MODULE="$(MODULE)" VERSION="$(VERSION)"
 
 clean-cache:

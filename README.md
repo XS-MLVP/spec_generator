@@ -4,19 +4,16 @@
 
 项目不把输入 spec 当作最终事实。生成流程会核对源码和实际 RTL，将结论分为 `FACT-*`、`OPEN-*`，并为 I/O、参数、顶层状态机、FG/FC/CK、Mermaid 图和场景案例保存可机器检查的证据。
 
-## 当前状态
+## 工具基线
 
 | 项目 | 当前基线 |
 | --- | --- |
 | XiangShan submodule | `aee742c92250058644c3166fae54c489161347cc` |
 | 默认配置 | `DefaultConfig` |
-| 模板结构版本 | `v3.1.1` |
-| 最新 Sbuffer 文档 | [v2.0.1](outputs/Sbuffer/Sbuffer_design_document_zh_v2.0.1.md) |
-| 最新质量报告 | [v2.0.1](reports/Sbuffer/Sbuffer_document_quality_review_v2.0.1.md) |
-| 文档版本历史 | [VERSION_HISTORY.md](outputs/Sbuffer/VERSION_HISTORY.md) |
+| 模板结构版本 | `v3.3.0` |
 | 自动检查 | Linux/macOS：RTL evidence、文档结构、链接和 Mermaid 实际渲染 |
 
-当前输出适合作为设计评审、验证计划和属性生成的输入。在 UCAgent checker、SVA 编译以及 formal prove/cover 回归完成前，文档不应标记为 `Frozen`。
+模块输入和生成产物属于用户工作资产，保存在本地 `inputs/`、`outputs/`、`reports/<Module>/` 和 `evidence/`，不纳入本工具仓库的 Git 历史。生成文档适合作为设计评审、验证计划和属性生成的输入；在 UCAgent checker、SVA 编译以及 formal prove/cover 回归完成前，不应标记为 `Frozen`。
 
 ## 为一个模块生成 Spec 文档
 
@@ -172,13 +169,14 @@ make evidence MODULE=<Module> CONFIG=<Config> VERSION=vX.Y.Z
 
 ## 快速命令示例
 
-以下命令展示 Sbuffer 下一 Patch 版本的完整手工检查顺序。正文仍应由 Skill 生成：
+以下命令展示一个模块的完整手工检查顺序。版本必须由 Skill 根据本地 `VERSION_HISTORY.md` 选择，正文仍由 Skill 生成：
 
 ```bash
-make evidence MODULE=Sbuffer CONFIG=DefaultConfig VERSION=v2.0.2
+make evidence MODULE=<Module> CONFIG=<Config> VERSION=<version>
 # 在 OpenCode 中使用 Skill 生成 outputs/、reports/ 和 VERSION_HISTORY.md
-make render MODULE=Sbuffer VERSION=v2.0.2
-make lint MODULE=Sbuffer VERSION=v2.0.2
+make metadata MODULE=<Module> VERSION=<version>
+make render MODULE=<Module> VERSION=<version>
+make lint MODULE=<Module> VERSION=<version>
 ```
 
 ## 生成流程
@@ -204,12 +202,14 @@ preflight
 
 ## 文档模型
 
-模板位于 [chip_design_document_template_zh.md](templates/chip-design-document/chip_design_document_template_zh.md)，当前结构版本为 `v3.1.1`。文档按正文、验证计划和附录三层组织：正文以一页摘要、数据流、统一行为规则和实例能力矩阵帮助理解，验证计划以统一 Test Plan 承载 FC、CK、Coverage 和场景，附录集中保存完整接口、配置、证据与签核信息。主要内容包括：
+模板位于 [chip_design_document_template_zh.md](templates/chip-design-document/chip_design_document_template_zh.md)，当前结构版本为 `v3.3.0`。文档按正文、验证计划和附录三层组织：正文以一页摘要、数据流、统一行为规则和实例能力矩阵帮助理解，验证计划以统一 Test Plan 和 Coverage Design Contract 承载 FC、CK、Coverage 和场景，附录集中保存完整接口、配置、证据与签核信息。主要内容包括：
 
 - 文档版本、RTL 基线、配置、工具链和 evidence。
 - 面向阅读的逻辑接口名，以及其到 Chisel Bundle/object 和精确 Verilog 端口的附录映射。
 - 使用 `P-*` 标识的权威行为定义，FC、CK、Coverage 和 Case 通过 ID 引用，避免同一事实重复展开。
 - 正文使用 `[E-*]` 引用证据，源码和 RTL 的完整定位统一在附录展开。
+- CK 维护独立的属性实现状态：`Illustrative`、`Planned`、`Generated`、`Compiled`、`Proved`、`Covered`，不能用代表性公式冒充完整属性契约。
+- Coverage 计划明确观察事件、有效性保护、重要取值、依赖/交叉、非法/忽略条件和闭合对象；覆盖基于 checker 确认的观察结果，而不是仅凭激励已发送。
 - `Generated`、`Elided` 和 `OPEN-IO-*` 配置状态。
 - 参数的 Scala 定义位置与顶层状态机。
 - 带 DUT `subgraph` 边界的微架构图和事务时序图。
@@ -217,6 +217,10 @@ preflight
 - 正常、资源边界和恢复路径的 user-story case。
 
 项目级 Skill 位于 [.opencode/skills/xiangshan-design-document/SKILL.md](.opencode/skills/xiangshan-design-document/SKILL.md)，定义证据优先级、版本策略、源码分析方法、I/O 映射规则、图形门禁和交付标准。
+
+### 文档参考案例
+
+`references/` 用于保存经过筛选的优秀文档和验证计划参考案例，并纳入 Git 跟踪。当前包含 [coverage_cookbook.pdf](references/coverage_cookbook.pdf)。其 Coverage Examples(Practice) 用于借鉴覆盖项的表达、观察点、分箱、交叉、命名和闭合思路；它不是本项目的 Spec 模板，也不能替代 XiangShan 源码、elaborated RTL 或版本化 evidence。新增参考资料时应在评审中说明来源和用途，不得把参考案例中的具体模块结构直接复制为 DUT 结论。
 
 ## 目录结构
 
@@ -226,14 +230,15 @@ preflight
 |- templates/chip-design-document/  设计文档模板
 |- outputs/<Module>/                版本化设计文档和 VERSION_HISTORY
 |- reports/<Module>/                同版本质量报告
-|- evidence/<Module>/<version>/     RTL manifest、ports.csv、Mermaid SVG
+|- evidence/<Module>/<version>/     本地 RTL manifest、ports.csv、Mermaid SVG
+|- references/                      经筛选的文档与验证方法参考案例
 |- tools/                            跨平台生成和检查工具
 |- environment/                      Linux/macOS/Docker 环境说明
 |- third_party/XiangShan/            XiangShan Git submodule
 `- .opencode/skills/                 OpenCode 项目 Skill
 ```
 
-`.cache/` 保存可删除的本机工具和 split-RTL 缓存；`evidence/` 是文档版本的一部分，应提交到 Git。
+`.cache/` 保存可删除的本机工具和 split-RTL 缓存。`inputs/`、`outputs/`、模块级 `reports/` 和 `evidence/` 均被 `.gitignore` 排除；它们仍是本地文档版本的一部分，应由使用者通过项目外的制品库、评审系统或受控存储自行归档。仓库只追踪模板、Skill、工具、通用维护文档和 `references/` 参考资料。
 
 ## 常用命令
 
@@ -243,10 +248,15 @@ preflight
 | `make preflight MODULE=<M> CONFIG=<C>` | 检查源码、配置、工具和图形环境。 |
 | `make rtl MODULE=<M> CONFIG=<C>` | 生成或复用配置级 split-RTL 缓存。 |
 | `make evidence MODULE=<M> CONFIG=<C> VERSION=<V>` | 创建该版本的 RTL manifest 和端口清单。 |
+| `make metadata MODULE=<M> VERSION=<V>` | 从 matching evidence manifest 同步文档/报告元数据；只更新机器字段，不覆盖已有 VERSION_HISTORY 行。新版本首次写 history 时需再传 `CHANGE_TYPE` 和 `SUMMARY`。 |
 | `make render MODULE=<M> VERSION=<V>` | 实际渲染文档内全部 Mermaid 图并保存 SVG/hash。 |
 | `make validate MODULE=<M> VERSION=<V>` | 严格检查单个版本。 |
 | `make lint MODULE=<M> VERSION=<V>` | 重渲染图，并运行工具、仓库和文档检查。 |
+| `make repo-lint` | 检查仓库自有脚本、Markdown、模板版本和 Skill 元数据，不读取本地模块资产。 |
+| `make template-check` | 使用固定 Mermaid 工具真实渲染模板中的示例图。 |
 | `make clean-cache` | 删除可重建的 `.cache/`。 |
+
+新生成的 v3 文档必须精确使用当前模板版本。仅验证历史归档文档时，可运行 `make validate MODULE=<M> VERSION=<V> ALLOW_HISTORICAL_TEMPLATE=--allow-historical-template`；不得对新文档使用该参数绕过模板升级。
 
 ## 版本与缓存
 
@@ -271,11 +281,14 @@ RTL 缓存键包含 XiangShan commit、配置、生成 flags、Java/Mill/Espress
 - Mermaid 真实解析、浏览器渲染、非空 SVG、source/SVG hash。
 - XiangShan 生成过程不会遗留 submodule 修改。
 
-CI 在 Linux 和 macOS 上运行同一验证入口。提交前请执行：
+CI 在 Linux 和 macOS 上检查仓库自有文件和模板渲染。维护模板、Skill 或工具时，提交前执行：
 
 ```bash
-make lint MODULE=Sbuffer VERSION=v2.0.1
+make repo-lint
+make template-check
 ```
+
+模块文档验收仍使用 `make lint MODULE=<Module> VERSION=<version>`，但相关输入和产物只保留在用户本地或外部制品存储。
 
 ## 参与贡献
 

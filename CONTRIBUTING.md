@@ -9,7 +9,7 @@
 | 文档模板 | `templates/chip-design-document/chip_design_document_template_zh.md` | 定义交付文档的章节、字段、表格和标签 schema。 |
 | OpenCode Skill | `.opencode/skills/xiangshan-design-document/SKILL.md` | 指导 AI 如何取证、生成、判断版本和完成质量门禁。 |
 | 文档检查器 | `tools/validate_document.py` | 检查单个模块版本的结构和 evidence。 |
-| 仓库检查器 | `tools/validate_repository.py` | 检查跨模块链接、manifest 和模板约束。 |
+| 仓库检查器 | `tools/validate_repository.py` | 检查仓库自有 Markdown 链接、模板版本和 Skill 元数据；不扫描本地模块资产。 |
 | RTL/图形工具 | `tools/generate_rtl.sh`、`extract_rtl_evidence.py`、`validate_mermaid.py` | 产生可复现 evidence。 |
 | 模板迭代记录 | `reports/template/Template_iteration_review.md` | 记录问题、决策、模板版本和回归结果。 |
 
@@ -22,9 +22,9 @@
 - I/O 必须区分 Chisel 声明与当前配置的 `Generated`/`Elided` Verilog 结果。
 - 顶层状态机章节不能混入 entry 生命周期或子模块 FSM。
 - `FG-API` 只能包含 Assume，`FG-COVERAGE` 只能包含 Cover。
-- 每个 FC 必须有自然语言、FC 表和至少一个独立 CK。
+- 每个 FC 必须在附录注册表中唯一出现，在 Test Plan 中关联至少一个独立 CK；主阅读路径不重复 FC/CK 双表。
 - Mermaid 必须真实渲染，并以 source/SVG hash 防止使用过期证据。
-- 历史文档和 evidence 不得在普通迭代中被覆盖。
+- 本地历史文档和 evidence 不得在普通迭代中被覆盖；模块输入和产物不提交到工具仓库。
 - 不修改 XiangShan submodule 源码来迁就文档生成工具。
 
 ## 模板版本
@@ -40,7 +40,7 @@
 升级模板版本时必须：
 
 1. 更新模板顶部 `模板结构版本`。
-2. 更新模板“文档控制与依据”中的 `使用模板版本` 示例。
+2. 更新模板“附录 A：文档控制与范围裁定”中的 `使用模板版本` 示例。
 3. 在 `Template_iteration_review.md` 说明问题、改动、兼容性和回归结果。
 4. 判断已有模块是否需要生成新文档版本；不要追溯修改历史版本记录的模板号。
 
@@ -71,8 +71,7 @@ Skill 必须说明可执行工作流，而不是重复模板全部正文。重�
 ```bash
 git switch -c <topic-branch>
 make init
-make preflight MODULE=Sbuffer CONFIG=DefaultConfig
-make lint MODULE=Sbuffer VERSION=v2.0.1
+make repo-lint
 ```
 
 记录修改前的检查结果。不要把已有失败归因于本次改动。
@@ -83,27 +82,27 @@ make lint MODULE=Sbuffer VERSION=v2.0.1
 - 再同步 Skill 的生成步骤和完成标准。
 - 能自动检查的新规则应加入 checker，避免只依赖提示词。
 - 跨平台逻辑必须同时考虑 Linux/macOS 和 x86-64/ARM64。
-- 不提交 `.cache/`、XiangShan build、凭据、私有路径或 IDE 状态。
+- 不提交 `.cache/`、XiangShan build、模块级 `inputs/outputs/reports/evidence`、凭据、私有路径或 IDE 状态。
 
-### 3. 使用回归模块验证
+### 3. 验证模板与本地回归模块
 
-Sbuffer 是当前模板和 Skill 的基准回归模块。至少执行：
+仓库不再保存 Sbuffer 或其他具体模块 fixture。至少验证模板和仓库；若本地已准备回归模块，再运行模块 lint：
 
 ```bash
 # 模板自身 Mermaid 示例
-rm -rf .cache/mermaid-check/template
-./tools/validate_mermaid.py \
-  --document templates/chip-design-document/chip_design_document_template_zh.md \
-  --output-dir .cache/mermaid-check/template
+make template-check
 
-# 最新已交付模块文档
-make lint MODULE=Sbuffer VERSION=v2.0.1
+# 仓库级检查不读取被忽略的模块产物
+make repo-lint
+
+# 可选：使用本地模块资产做端到端回归
+make lint MODULE=<Module> VERSION=<version>
 git diff --check
 ```
 
-若改动会影响生成结果，应使用新文档版本完整重生成 Sbuffer，而不是改写旧版本。确认：
+若改动会影响生成结果，应选择一个本地模块并使用新文档版本完整回归，不得改写旧版本。确认：
 
-- 设计文档、质量报告、VERSION_HISTORY 和 evidence 版本一致。
+- 本地设计文档、质量报告、VERSION_HISTORY 和 evidence 版本一致。
 - RTL commit/config/hash 未变化时，质量报告明确说明。
 - FG/FC/CK 的新增、删除或语义变化符合所选文档版本。
 - 所有 Mermaid SVG 可渲染且 source hash 最新。
@@ -129,14 +128,15 @@ PR 应聚焦一个模板或 Skill 问题，并说明：
 - 对已有文档和 UCAgent 解析的兼容性影响。
 - Linux/macOS 相关影响。
 - 回归命令和实际结果。
-- 是否生成了新的模块回归文档/evidence。
+- 是否在本地生成并验证了新的模块回归文档/evidence；这些产物不附在 PR 中。
 
 使用仓库 PR 模板，并确保：
 
 - `git diff --check` 通过。
 - 模板 Mermaid 示例实际渲染成功。
-- `make lint MODULE=Sbuffer VERSION=<regression-version>` 通过。
-- 敏感信息、缓存和 submodule build 未进入提交。
+- `make repo-lint` 和 `make template-check` 通过。
+- 若有本地模块回归资产，`make lint MODULE=<Module> VERSION=<version>` 通过。
+- 模块输入/输出/evidence、敏感信息、缓存和 submodule build 未进入提交。
 
 ## 提交信息
 

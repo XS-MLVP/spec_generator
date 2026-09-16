@@ -65,6 +65,9 @@ XiangShan 配置：<Config>
 
 修改 `.opencode/skills/` 后需重启 OpenCode，Skill 不会在当前会话中热更新。
 
+也可以通过 UCAgent 的 `xiangshan-spec-generator:design-document` 插件工作流生成并严格验收，
+用法见 [UCAgent 插件](README.UCAgent.md)。
+
 ### 5. 检查产物
 
 一次完整生成会在本地创建：

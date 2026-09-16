@@ -1,0 +1,3 @@
+include ucagent-plugin.toml README.UCAgent.md
+recursive-include src/spec_generator_plugin/resources *.md *.yaml
+recursive-include tests *.py

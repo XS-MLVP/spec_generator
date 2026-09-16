@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ucagent-xiangshan-spec-generator"
+version = "0.1.0"
+description = "UCAgent plugin for evidence-based XiangShan design document generation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["UCAgent>=0.9.1"]
+
+[project.entry-points."ucagent.plugins"]
+xiangshan-spec-generator = "spec_generator_plugin.plugin:get_plugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+spec_generator_plugin = [
+  "resources/Guide_Doc/*.md",
+  "resources/skills/xiangshan-design-document/*.md",
+  "resources/templates/chip-design-document/*.md",
+  "resources/workflows/*.yaml",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_PARTS = {".git", ".cache", "node_modules", "third_party"}
+EXCLUDED_PARTS = {".git", ".cache", ".ucagent", "node_modules", "third_party", "build", "dist"}
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 
@@ -17,7 +17,7 @@ def is_repository_owned(path: Path) -> bool:
     parts = path.relative_to(ROOT).parts
     if not parts or EXCLUDED_PARTS.intersection(parts):
         return False
-    if parts[0] in {"inputs", "outputs", "evidence"}:
+    if parts[0] in {"inputs", "outputs", "evidence", "Guide_Doc"}:
         return False
     if parts[0] == "reports" and (len(parts) < 2 or parts[1] != "template"):
         return False

@@ -32,6 +32,13 @@ htmlcov/
 .venv/
 venv/
 
+# UCAgent runtime state and Python plugin builds.
+.ucagent/
+/Guide_Doc/
+build/
+dist/
+*.egg-info/
+
 # Node.js
 node_modules/
 npm-debug.log*

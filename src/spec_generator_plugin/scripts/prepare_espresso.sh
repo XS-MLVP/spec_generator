@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${SPEC_GENERATOR_WORKSPACE:-"$PWD"}
+PYTHON=${SPEC_GENERATOR_PYTHON:-python3}
 XS_ROOT=${XIANGSHAN_ROOT:-"$ROOT/third_party/XiangShan"}
-CACHE_ROOT=${TEMPLATE_GENERATE_CACHE:-"$ROOT/.cache"}
+CACHE_ROOT=${SPEC_GENERATOR_CACHE:-"$ROOT/.cache"}
 ESPRESSO_COMMIT=${ESPRESSO_COMMIT:-85265139e9598852f9388d293658a1977a829a01}
 bundled="$XS_ROOT/src/main/resources/espresso"
 os=$(uname -s)

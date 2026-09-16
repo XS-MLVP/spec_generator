@@ -15,12 +15,11 @@ def test_plugin_descriptor_validates() -> None:
     assert plugin.workflows[0].name == "design-document"
     assert plugin.workflows[0].config_file.is_file()
     assert all(path.exists() for path in plugin.workflows[0].guide_doc_paths)
-    assert plugin.workflows[0].template_dir is not None
-    assert Path(plugin.workflows[0].template_dir).is_dir()
+    assert plugin.workflows[0].template_dir is None
 
 
 def test_command_rejects_shell_like_arguments(tmp_path: Path) -> None:
-    """The command tool rejects invalid identifiers before starting make."""
+    """The command tool rejects invalid identifiers before starting any command."""
     tool = SpecGeneratorCommand(workspace=str(tmp_path))
     result = tool._run("preflight", "Sbuffer;touch-pwned")
     assert result["ok"] is False
@@ -34,3 +33,22 @@ def test_command_has_mcp_convertible_pydantic_schema(tmp_path: Path) -> None:
     schema = mcp_tool.parameters
     assert "action" in schema["properties"]
     assert schema["additionalProperties"] is False
+
+
+def test_parser_dependency_is_declared_and_diagnosed(monkeypatch):
+    """Missing parser metadata yields the same actionable dependency gate as installed plugins."""
+    import importlib.metadata
+    import pytest
+    from ucagent.plugins import PluginError
+
+    real_version = importlib.metadata.version
+
+    def installed_version(name):
+        """Simulate only the parser distribution being unavailable."""
+        if name == "markdown-it-py":
+            raise importlib.metadata.PackageNotFoundError(name)
+        return real_version(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", installed_version)
+    with pytest.raises(PluginError, match="requires Python package markdown-it-py"):
+        validate_plugin(get_plugin(), check_dependencies=True)

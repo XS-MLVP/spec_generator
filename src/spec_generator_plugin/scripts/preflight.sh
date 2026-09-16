@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${SPEC_GENERATOR_WORKSPACE:-"$PWD"}
+PYTHON=${SPEC_GENERATOR_PYTHON:-python3}
 XS_ROOT=${XIANGSHAN_ROOT:-"$ROOT/third_party/XiangShan"}
 CONFIG=DefaultConfig
 MODULE=
@@ -10,7 +12,7 @@ DOCUMENT_TOOLS=0
 
 usage() {
   cat <<'EOF'
-Usage: tools/preflight.sh [--module NAME] [--config CONFIG] [--strict] [--document-tools]
+Usage: preflight.sh [--module NAME] [--config CONFIG] [--strict] [--document-tools]
 
 Checks the cross-platform environment before XiangShan evidence generation.
 --strict also requires a clean XiangShan worktree and initialized nested submodules.
@@ -61,7 +63,7 @@ if [[ -n "$MODULE" ]]; then
   fi
 fi
 
-if java_home=$("$ROOT/tools/bootstrap_jdk.sh" 2>/dev/null); then
+if java_home=$(bash "$SCRIPT_DIR/bootstrap_jdk.sh" 2>/dev/null); then
   java_version=$("$java_home/bin/java" -version 2>&1 | head -n 1)
   ok "Java: $java_version ($java_home)"
 else
@@ -74,24 +76,24 @@ else
   fail "missing XiangShan .mill-version"
 fi
 
-if espresso=$("$ROOT/tools/prepare_espresso.sh" 2>/dev/null); then
+if espresso=$(bash "$SCRIPT_DIR/prepare_espresso.sh" 2>/dev/null); then
   ok "Espresso runtime: $espresso"
 else
   fail "no executable Espresso for this platform; install a C compiler and make"
 fi
 
 if [[ $DOCUMENT_TOOLS -eq 1 ]]; then
-  if node_home=$("$ROOT/tools/bootstrap_node.sh" 2>/dev/null); then
+  if node_home=$(bash "$SCRIPT_DIR/bootstrap_node.sh" 2>/dev/null); then
     ok "Node.js: $("$node_home/bin/node" --version) ($node_home)"
   else
     fail "pinned Node.js bootstrap failed"
   fi
-  if mmdc=$("$ROOT/tools/bootstrap_mermaid.sh" 2>/dev/null); then
+  if mmdc=$(bash "$SCRIPT_DIR/bootstrap_mermaid.sh" 2>/dev/null); then
     ok "Mermaid CLI: $mmdc"
   else
     fail "Mermaid CLI bootstrap failed"
   fi
-  if browser=$("$ROOT/tools/bootstrap_mermaid_browser.sh" 2>/dev/null); then
+  if browser=$(bash "$SCRIPT_DIR/bootstrap_mermaid_browser.sh" 2>/dev/null); then
     ok "Mermaid browser: $browser"
   else
     fail "no Mermaid browser available and browser bootstrap failed"

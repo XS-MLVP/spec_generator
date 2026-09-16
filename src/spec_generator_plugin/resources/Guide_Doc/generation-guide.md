@@ -4,32 +4,32 @@
 
 Generate an evidence-based, human-readable Chinese design and functional-checkpoint document for one XiangShan DUT. Produce both the design document and a quality review. Do not treat an optional spec as authoritative over source code. Optimize the reading order for understanding first and auditability second; preserve complete audit detail in appendices.
 
-## Repository Contract
+## Workspace Contract
 
-Resolve all paths from the documentation repository root:
+Resolve all paths from the active workspace root:
 
 | Asset | Path |
 | --- | --- |
-| Template | `templates/chip-design-document/chip_design_document_template_zh.md` |
+| Template | `Guide_Doc/chip_design_document_template_zh.md` |
 | XiangShan source | `third_party/XiangShan/` |
 | Optional module specs | `inputs/<Module>/` |
 | Versioned design document | `outputs/<Module>/<Module>_design_document_zh_v<MAJOR.MINOR.PATCH>.md` |
 | Versioned quality report | `reports/<Module>/<Module>_document_quality_review_v<MAJOR.MINOR.PATCH>.md` |
 | Version history | `outputs/<Module>/VERSION_HISTORY.md` |
-| Versioned RTL evidence | `evidence/<Module>/<version>/manifest.json` and `ports.csv` |
-| Cross-platform tooling | `tools/preflight.sh`, `tools/generate_rtl.sh`, `tools/validate_document.py` |
+| Versioned RTL evidence | `evidence/<Module>/<version>/manifest.json`, `ports.csv`, and `<Module>.sv` |
+| Generation and validation | `SpecGeneratorCommand`, `Check`, `Complete` |
 
 Create the module-specific input, output, and report directories when needed. Do not put generated files at repository root. Do not modify XiangShan source merely to make documentation generation easier.
 
-Module inputs and generated artifacts under `inputs/`, `outputs/`, `reports/<Module>/`, and `evidence/` are local user assets and are ignored by this tool repository. Generate and validate them normally, but do not stage or commit them. Users who need retention must archive them outside this repository. Generic maintenance material such as `reports/template/` remains repository-owned.
+Module inputs and generated artifacts under `inputs/`, `outputs/`, `reports/<Module>/`, and `evidence/` are local user assets and are ignored by this tool repository. Generate and validate them normally, but do not stage or commit them. Users who need retention must archive them outside this repository.
 
 ## Document Versioning
 
-Every generated design document and its quality report must have one shared semantic document version. A generated artifact without a version in both its filename and document-control table is invalid.
+Every generated design document and its quality report must have one shared semantic document version. Keep the version in its filename and visible document metadata; the location and layout are flexible.
 
 The template has its own visible `模板结构版本`. Record that value in the generated document as `使用模板版本`. A backward-incompatible template structure change is evidence for a document MAJOR increment; do not infer this from the template modification date alone.
 
-New documents must use the exact current template version. `--allow-historical-template` is only for validating an already archived document; never use it to make a newly generated document pass with a stale template.
+New documents must use the exact current template version provided in Guide_Doc/chip_design_document_template_zh.md.
 
 Use `vMAJOR.MINOR.PATCH`, for example `v1.2.3`. This is the documentation version, not the XiangShan RTL version. Record the XiangShan commit and configuration separately.
 
@@ -40,9 +40,8 @@ Before drafting, inspect:
 - `outputs/<Module>/VERSION_HISTORY.md` when present.
 - All versioned design documents under `outputs/<Module>/`.
 - All versioned quality reports under `reports/<Module>/`.
-- Any unversioned legacy output for comparison only.
 
-Choose exactly one next version:
+The workflow fixes the version at startup. Use the following guidance to review that choice; if it is unsuitable, restart with a suitable version instead of changing filenames mid-task:
 
 | Increment | Use when |
 | --- | --- |
@@ -52,17 +51,17 @@ Choose exactly one next version:
 
 Rules:
 
-- The first versioned document for a module is `v1.0.0`, even when unversioned legacy files exist.
+- The first versioned document for a module is `v1.0.0`, unless the user has selected another valid initial version.
 - If the user explicitly requests a valid version greater than all existing versions, use it and record the reason. Reject reuse or downgrade of an existing version unless the user explicitly asks to replace history.
 - Every generation creates a new version. Never overwrite an older versioned document or report.
 - The design document and quality report must use the same version.
-- After evidence and diagrams exist, run `make metadata MODULE=<Module> VERSION=<version>` to synchronize template version, commit, configuration, RTL hash/count, diagram metadata, and generation date. This command must preserve an existing VERSION_HISTORY row rather than replacing its semantic change summary.
+- After evidence and the draft artifacts exist, call `SpecGeneratorCommand(action="metadata", module="<Module>", config="<Config>", version="<version>")` to synchronize template version, commit, configuration, RTL hash/status, and date. This command must preserve an existing VERSION_HISTORY row rather than replacing its semantic change summary.
 - Compare against the immediately preceding version and summarize actual differences. Do not infer a change category only from timestamps.
 - A newer XiangShan commit does not automatically require MAJOR. Classify by the resulting document contract, normally MINOR for behavioral change and PATCH for evidence-only change.
 
-### Required Version Metadata
+### Visible Version Metadata
 
-Add these rows to the design document's `附录 A：文档控制与范围裁定` table:
+Expose these facts in a table or prose at a suitable location:
 
 | Field | Required value |
 | --- | --- |
@@ -74,7 +73,7 @@ Add these rows to the design document's `附录 A：文档控制与范围裁定`
 | 适用配置 | Exact selected configuration and feature switches |
 | 生成日期 | ISO `YYYY-MM-DD` |
 
-Put the version directly below the H1 as visible text: `> 文档版本：vMAJOR.MINOR.PATCH`.
+For example, show the version below the title: `> 文档版本：vMAJOR.MINOR.PATCH`.
 
 The quality report must state its own version, the reviewed design-document version/path, the previous version/path, and a version-to-version change summary grouped as added, changed, fixed, removed, and remaining OPEN items.
 
@@ -83,7 +82,7 @@ Maintain `outputs/<Module>/VERSION_HISTORY.md` with newest version first:
 | 版本 | 日期 | XiangShan commit | 配置 | 变更类型 | 摘要 | 设计文档 | 质量报告 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
-Use relative links from `VERSION_HISTORY.md`. Add exactly one row per generated version. Never rewrite an older row except to repair a broken path or an objectively incorrect metadata value, and record such a repair in the new quality report.
+Use relative links from `VERSION_HISTORY.md`. Keep one entry per version; a list is also acceptable. Never rewrite an older row except to repair a broken path or an objectively incorrect metadata value, and record such a repair in the new quality report.
 
 ## Required Inputs
 
@@ -111,17 +110,19 @@ When sources conflict, report the conflict. Do not silently choose the spec over
 
 ## Document Information Architecture
 
+Follow the fixed heading titles, levels, order, and per-section table counts in Guide_Doc/chip_design_document_template_zh.md. Fill bracketed heading values with actual names. The template marks repeatable P-* sections (one or more) and additional CASE-* sections (zero or more). Keep the normal, boundary, and recovery case headings; explain inapplicability when needed. Table row counts, prose length, and diagram counts depend on the module.
+
 ### Template Directive Semantics
 
-Treat HTML comments in the template as normative generator directives, not prose to copy into the output:
+Use the template comments as writing guidance, not DUT facts or prose to copy into the output:
 
 - `MAINTAINER` explains template versioning or parser contracts. Preserve the contract when editing the template; omit the comment from generated documents unless the template is copied verbatim as a starting point.
-- `GENERATOR` states mandatory generation behavior. Replace or remove every square-bracket placeholder and never leave instructional examples as DUT facts.
+- `GENERATOR` describes recommended generation behavior. Replace or remove every square-bracket placeholder and never leave instructional examples as DUT facts.
 - `CONDITIONAL` states an applicability decision. If applicable, generate the requested content; otherwise keep a concise `不适用` conclusion with evidence instead of silently deleting the topic.
 
 Visible blockquotes explain the document to readers. HTML comments instruct the generator. Do not move audit-only instructions into visible prose, and do not hide reader-critical behavior solely in comments.
 
-The generated document must not contain template directive comments or unreplaced instructional placeholders. For every conditional topic, preserve an explicit `适用性：已应用` or `适用性：不适用` decision, a reason, and an `[E-*]` reference.
+The generated document must not contain template directive comments or unreplaced instructional placeholders. For conditional topics, state applicability and its reason/evidence in the form most useful for the module.
 
 ## Coverage Practice Principles
 
@@ -167,7 +168,7 @@ Avoid consecutive tables with substantially overlapping columns such as descript
 
 ### One-Page Summary
 
-The first main-body section must fit approximately one rendered page and state:
+Aim for a concise opening summary, roughly one page when practical, that states:
 
 - Module responsibility and explicit non-goals.
 - Important inputs and their producers.
@@ -233,8 +234,8 @@ Use the template states exactly: `Illustrative`, `Planned`, `Generated`, `Compil
 
 Before source analysis or elaboration, run:
 
-```bash
-./tools/preflight.sh --module <Module> --config <Config> --strict --document-tools
+```text
+SpecGeneratorCommand(action="preflight", module="<Module>", config="<Config>")
 ```
 
 This workflow supports Linux and macOS. Do not assume Homebrew, GNU `time`, x86-64, a system-wide Java, or a system-wide Mill installation. The project scripts bootstrap Temurin JDK 17 when needed, bootstrap the XiangShan-pinned Mill, and select/build a native Espresso for the host OS and architecture.
@@ -244,7 +245,7 @@ If preflight fails, resolve missing Java 17, Git, Curl, Make, C compiler, Python
 ### 1. Establish the Baseline
 
 - Determine the next document version before writing and identify the immediately preceding version used for comparison.
-- Record the XiangShan submodule commit with `git -C third_party/XiangShan rev-parse HEAD`.
+- Record the full XiangShan commit from preflight and the matching RTL manifest.
 - Record dirty status. A dirty submodule requires listing relevant modified files in the document baseline.
 - Identify the selected XiangShan configuration and all feature switches affecting the DUT.
 - Read the full template before drafting.
@@ -303,13 +304,13 @@ Never derive a Verilog name solely from a Chisel path. Firtool naming, flattenin
 
 Prefer versioned evidence or a matching cache. Generate missing RTL only through:
 
-```bash
-./tools/generate_rtl.sh --module <Module> --config <Config> --version <version>
+```text
+SpecGeneratorCommand(action="evidence", module="<Module>", config="<Config>", version="<version>")
 ```
 
-The wrapper uses the XiangShan TopMain flow without assuming GNU `time`, caches the full split RTL by commit/config/generator/tool/platform fingerprint for reuse across modules, restores any temporary native Espresso substitution, sets integration paths required by generation, and writes persistent `manifest.json` plus `ports.csv`. Do not hand-roll an equivalent command unless the wrapper itself is broken; if that happens, fix the wrapper and record the failure.
+The wrapper uses the XiangShan TopMain flow without assuming GNU `time`, caches the full split RTL by commit/config/generator/tool/platform fingerprint for reuse across modules, restores any temporary native Espresso substitution, sets integration paths required by generation, and writes persistent `manifest.json` plus `ports.csv`. If generation fails, record its diagnostics and resolve the named input or environment issue before retrying. Do not modify the generator or validators to bypass a failure.
 
-Do not replace existing version evidence during normal generation. `--replace-evidence` is reserved for an explicitly documented repair of objectively incorrect metadata or a broken artifact; it does not permit changing historical RTL evidence silently.
+Do not replace existing version evidence. Inspect existing evidence when resuming the current unfinished task; select a new version for a new generation task.
 
 A nonzero full-top exit may still leave a complete split module RTL. Accept it only when the selected module file parses successfully, the manifest marks `generation_status: partial`, the failure occurred after RTL emission, and the quality report explains the downstream failure. Never call the full top generation successful in that case.
 
@@ -355,15 +356,15 @@ Mermaid source must avoid parser-sensitive text in identifiers and edge labels. 
 
 After writing or changing any Mermaid fence, render every diagram through the pinned workflow:
 
-```bash
-make render MODULE=<Module> VERSION=<version>
+```text
+SpecGeneratorCommand(action="render", module="<Module>", config="<Config>", version="<version>")
 ```
 
-This must create `evidence/<Module>/<version>/diagrams/manifest.json` and nonblank SVG files. A balanced fence or Mermaid-looking source is not sufficient. Never report diagrams as passed when a real renderer was unavailable.
+This creates `evidence/<Module>/<version>/diagrams/manifest.json` and one SVG per Mermaid fence; no diagrams produces an empty manifest. A balanced fence or Mermaid-looking source is not sufficient. Never report diagrams as passed when a real renderer was unavailable.
 
 ### 8. Define FG, FC, CK, and Coverage
 
-Follow the current template exactly.
+Follow the fixed structure in Guide_Doc/chip_design_document_template_zh.md and fill its repeatable sections according to the module. Preserve the applicable technical analysis and evidence.
 
 - Render labels visibly with backticks: `` `<FG-NAME>` ``, `` `<FC-NAME>` ``, `` `<CK-NAME>` ``. Bare angle-bracket labels can disappear as HTML.
 - Keep FG boundary descriptions short and risk-oriented.
@@ -396,15 +397,15 @@ Each case includes a goal, actors, preconditions, ordered actor actions, related
 
 ### 10. Synchronize Artifact Metadata
 
-Once the design document, report, RTL manifest, and diagram manifest exist, run:
+After drafting the design document, report, and history with verified RTL evidence, run:
 
-```bash
-make metadata MODULE=<Module> VERSION=<version>
+```text
+SpecGeneratorCommand(action="metadata", module="<Module>", config="<Config>", version="<version>")
 ```
 
-The metadata helper is authoritative for generated values only: template version, XiangShan commit, selected configuration, RTL generation status, RTL SHA-256, port counts, diagram count/renderer, and generation date. It must not rewrite behavioral prose, OPEN conclusions, version-change summaries, or an existing history row. Review its diff before validation.
+The metadata helper is authoritative for generated values only: template version, XiangShan commit, selected configuration, RTL generation status, RTL SHA-256, and generation date. It adds a `spec-generator` metadata comment and updates recognized visible metadata cells when present. Review port counts and diagram summaries against their manifests yourself. It must not rewrite behavioral prose, OPEN conclusions, version-change summaries, or an existing history row. Review its diff before validation.
 
-When the version has no history row yet, also provide `CHANGE_TYPE=Major|Minor|Patch` and `SUMMARY="..."`. The helper refuses to invent those semantic fields. On reruns it preserves the existing history row unchanged.
+When the version has no history row yet, also provide `change_type="Major"`, `"Minor"`, or `"Patch"` and `summary="..."` in the metadata call. The helper refuses to invent those semantic fields. On reruns it preserves the existing history row unchanged.
 
 ### 11. Produce the Quality Report
 
@@ -413,7 +414,7 @@ Create `reports/<Module>/<Module>_document_quality_review_v<MAJOR.MINOR.PATCH>.m
 - Document version, previous version, selected increment, and why that increment is correct.
 - Added, changed, fixed, removed, and still-open differences from the immediately preceding version.
 - Baseline commit, configuration, source files, generated RTL artifact, and optional specs used.
-- Host OS/architecture, preflight result, Java/Mill/firtool/Espresso versions, cache fingerprint, generation exit status, RTL hash, evidence manifest, and port counts.
+- Host OS/architecture, preflight result, Java/Mill/firtool/Espresso versions, generation status, RTL hash, evidence manifest, and port counts.
 - Mermaid CLI/browser versions, actual render result, diagram count, rendered SVG evidence, and any parser/render failure fixed during the run.
 - What spec claims were confirmed, corrected, rejected, or left OPEN.
 - I/O mapping completeness, including counts of mapped and open leaf ports.
@@ -444,40 +445,17 @@ Do not award a perfect score when exact Verilog I/O, source locations, Markdown 
 
 Before completion, run:
 
-```bash
-./tools/validate_document.py --module <Module> --version <version> --strict-evidence
-make lint MODULE=<Module> VERSION=<version>
+```text
+SpecGeneratorCommand(action="validate", module="<Module>", config="<Config>", version="<version>")
+Check()
 ```
 
-The checker is the minimum gate. Also check:
+Automated checks reject missing/empty artifacts, heading-title/level/order or per-section table-count mismatches, a stale template version, evidence that does not match current source/configuration/actual RTL, changed port data, undefined or duplicate machine tags, broken local file/line references, contradictory declared port widths/directions or signoff states, and stale/missing diagram renders. Check does not run generation, render diagrams again, or rewrite artifacts.
 
-- Design filename, report filename, visible header version, document-control version, report version, and history row all match exactly.
-- The selected version is greater than every existing module version and no older versioned file was overwritten.
-- `VERSION_HISTORY.md` contains one new row with valid relative links to both artifacts.
-- Required chapters from the template exist.
-- For template v3 and later, the document contains ordered main-body, verification-plan, and appendix layers.
-- The one-page summary identifies responsibility, producers, consumers, key-concept differences, latency/capacity, verification scope, and OPEN items before implementation detail.
-- Every `P-*` rule has one authoritative functional-behavior subsection with inputs, outputs, latency, rule/pseudocode, applicable instance categories, and boundaries; all referenced `P-*` IDs resolve.
-- An instance-capability matrix exists and implementation rules do not mix common mechanisms with exact instance/port inventories.
-- Reader-facing prose uses logical names; no main-body prose sentence contains three or more exact RTL port names.
-- Reader-facing sections use `[E-*]`; every reference resolves in appendix D and raw source paths stay out of the main body.
-- Generated documents contain no template directive comments or unreplaced placeholders; conditional topics use the standard `适用性` decision format.
-- Every CK has an explicit property implementation state separate from its signoff state, and the quality report summarizes those states.
-- Every FG/FC/CK label is visible and unique.
-- Every FC in the tree has one appendix registry row, at least one Test Plan row and CK, and a `P-*` reference.
-- Every CK has a legal Style, observation point, and evidence.
-- API contains only Assume; Coverage contains only Cover.
-- Mermaid fences are balanced and architecture contains the DUT subgraph.
-- Every Mermaid fence has current source-hash-matched render evidence, and `make lint` successfully re-renders all diagrams with the pinned CLI.
-- State semantics and state diagram use the same top-level states.
-- Every cross-boundary architecture edge uses a defined logical name mapped in appendix B.
-- Every exact Verilog port cited exists in the matching generated RTL.
-- Chisel-present but Verilog-elided fields explicitly state selected-config status and evidence; absence is not silently treated as an I/O omission.
-- Every Scala path and line reference exists at the recorded submodule commit.
-- Output and report links resolve after writing.
+Warnings identify potentially incomplete interface mapping, missing traceability categories, and remaining writing placeholders. Review each warning and either improve the document or explain the scope/applicability in the quality report. Warnings do not block Complete by themselves.
 
-Use parsers or repository search for these checks instead of visual counting. If UCAgent checker or Mermaid renderer is unavailable, state that explicitly in the quality report.
+Review design meaning yourself: producers and consumers, common mechanisms versus instance capabilities, authoritative P-* rules and E-* evidence, feature gating, priorities and frame conditions, effective Coverage sampling, relevant scenarios, unresolved facts, and honest property/signoff states. The sections above explain these methods. Fixed heading titles/levels/order and per-section table counts are required. Use the repeatable behavior/case blocks for expansion. Inapplicable sections retain their headings and an explanation; table row counts, sentence length, and diagram counts are not fixed. A passing Check proves artifact consistency, not design completeness or SVA/formal success.
 
 ## Completion Standard
 
-The task is complete only when the local versioned design document, same-version quality report, updated `VERSION_HISTORY.md`, versioned RTL evidence, current Mermaid SVG/manifest evidence, and checker/lint results are written. These module artifacts are not committed to the tool repository. Exact Verilog I/O and actual diagram rendering remain hard evidence requirements. When elaboration or rendering is unavailable, the document status must remain Draft and the corresponding signoff must remain blocked.
+The task is complete only when the local versioned design document, same-version quality report, updated `VERSION_HISTORY.md`, versioned RTL evidence, current diagram manifest (and SVGs when diagrams exist), and checker/lint results are written. These module artifacts are not committed to the tool repository. Exact Verilog I/O and actual diagram rendering remain hard evidence requirements. When elaboration or rendering is unavailable, the document status must remain Draft and the corresponding signoff must remain blocked.

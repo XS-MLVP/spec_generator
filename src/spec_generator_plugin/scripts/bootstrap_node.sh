@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CACHE_ROOT=${TEMPLATE_GENERATE_CACHE:-"$ROOT/.cache"}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${SPEC_GENERATOR_WORKSPACE:-"$PWD"}
+PYTHON=${SPEC_GENERATOR_PYTHON:-python3}
+CACHE_ROOT=${SPEC_GENERATOR_CACHE:-"$ROOT/.cache"}
 NODE_VERSION=${NODE_VERSION:-22.23.2}
 
 case "$(uname -s)" in
@@ -32,7 +34,7 @@ if [[ ! -x "$install_dir/bin/node" ]]; then
   rm -rf "$install_dir"
   mkdir -p "$install_dir"
   curl --fail --location --retry 3 "https://nodejs.org/dist/v$NODE_VERSION/$artifact" --output "$archive"
-  actual=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$archive")
+  actual=$("$PYTHON" -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$archive")
   if [[ "$actual" != "$expected" ]]; then
     printf 'error: Node.js archive checksum mismatch: expected %s, got %s\n' "$expected" "$actual" >&2
     exit 1

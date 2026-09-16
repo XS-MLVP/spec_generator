@@ -1,3 +1,4 @@
-include ucagent-plugin.toml README.UCAgent.md
-recursive-include src/spec_generator_plugin/resources *.md *.yaml
-recursive-include tests *.py
+include ucagent-plugin.toml CONTRIBUTING.md SECURITY.md Makefile
+recursive-include tools *.py *.sh *.yaml Dockerfile
+recursive-include src/spec_generator_plugin *.md *.yaml *.json *.sh
+recursive-include tests *.py *.md

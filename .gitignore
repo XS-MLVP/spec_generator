@@ -9,13 +9,10 @@ Desktop.ini
 tmp/
 
 # User-provided module inputs and generated module artifacts stay local.
-# Generic template-maintenance reports remain tracked.
 inputs/*
 outputs/*
 evidence/*
 reports/*
-!reports/template/
-!reports/template/**
 
 # XiangShan generated products stay inside the submodule.
 third_party/XiangShan/build/

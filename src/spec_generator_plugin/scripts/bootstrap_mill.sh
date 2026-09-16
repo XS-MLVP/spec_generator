@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${SPEC_GENERATOR_WORKSPACE:-"$PWD"}
+PYTHON=${SPEC_GENERATOR_PYTHON:-python3}
 XS_ROOT=${XIANGSHAN_ROOT:-"$ROOT/third_party/XiangShan"}
-CACHE_ROOT=${TEMPLATE_GENERATE_CACHE:-"$ROOT/.cache"}
+CACHE_ROOT=${SPEC_GENERATOR_CACHE:-"$ROOT/.cache"}
 
 if [[ ! -f "$XS_ROOT/.mill-version" ]]; then
   printf 'error: missing %s/.mill-version\n' "$XS_ROOT" >&2

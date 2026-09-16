@@ -19,7 +19,7 @@ from ucagent.tools.uctool import UCTool
 
 
 class SpecGeneratorCommandArgs(BaseModel):
-    """Select a repository action and its exact module/version inputs."""
+    """Select a plugin action and its exact module/version inputs."""
 
     model_config = ConfigDict(extra="forbid")
     action: Literal[
@@ -54,13 +54,13 @@ class SpecGeneratorCommandArgs(BaseModel):
 
 
 class SpecGeneratorCommand(UCTool):
-    """Run the repository's fixed commands with bounded output and progress."""
+    """Run the plugin's packaged commands with bounded output and progress."""
 
     name: str = "SpecGeneratorCommand"
     description: str = (
         "Run Spec Generator preflight, evidence, render, metadata, validate, or lint "
-        "in a spec_generator repository workspace. Read stderr/stdout on failure. "
-        "Generate evidence before drafting, then render before metadata and final lint."
+        "in the active workspace; source must be under third_party/XiangShan. Read stderr/stdout on failure. "
+        "Generate evidence before drafting, run metadata after writing, then render and lint."
     )
     args_schema: type[BaseModel] = SpecGeneratorCommandArgs
     workspace: str
@@ -107,28 +107,16 @@ class SpecGeneratorCommand(UCTool):
                 "next_action": "Set version; use change_type and summary only for metadata.",
             }
         workspace = Path(self.workspace).resolve()
-        required = [
-            "Makefile",
-            "tools/preflight.sh",
-            "tools/generate_rtl.sh",
-            "tools/validate_document.py",
-            "tools/validate_mermaid.py",
-            "tools/update_document_metadata.py",
-            "templates/chip-design-document/chip_design_document_template_zh.md",
-        ]
-        missing = [name for name in required if not (workspace / name).is_file()]
-        if missing:
+        if not workspace.is_dir():
             return {
                 "ok": False,
-                "error_code": "SPEC_GENERATOR_WORKSPACE_INVALID",
-                "error": "Required repository files are missing.",
-                "workspace": str(workspace),
-                "observed": missing,
-                "next_action": "Use the spec_generator repository root as workspace; initialize its XiangShan submodules before preflight.",
+                "error_code": "WORKSPACE_MISSING",
+                "error": "Workspace does not exist.",
+                "next_action": "Create the workspace and put the XiangShan source under third_party/XiangShan.",
             }
 
         # Each action has a fixed write footprint; resolved paths must stay in the workspace.
-        targets = [".cache"]
+        targets = [".cache"] if action in {"preflight", "evidence", "render"} else []
         if action == "evidence":
             targets += [
                 f"evidence/{module}/{version}",
@@ -145,12 +133,12 @@ class SpecGeneratorCommand(UCTool):
                 f"reports/{module}/{module}_document_quality_review_{version}.md",
             ]
         for name in [
-            *required,
             *targets,
             f"outputs/{module}",
             f"reports/{module}",
             f"evidence/{module}",
             "third_party/XiangShan",
+            ".ucagent/.spec_generator_receipt_key",
         ]:
             if not (workspace / name).resolve().is_relative_to(workspace):
                 return {
@@ -199,34 +187,36 @@ class SpecGeneratorCommand(UCTool):
                 }
 
         command = [
-            "make",
+            sys.executable,
+            "-P",
+            "-m",
+            "spec_generator_plugin.runtime",
             action,
-            f"MODULE={module}",
-            f"CONFIG={config}",
-            "ALLOW_HISTORICAL_TEMPLATE=",
+            "--module",
+            module,
+            "--config",
+            config,
+            "--version",
+            version,
         ]
-        if version:
-            command.append(f"VERSION={version}")
-        if action == "metadata":
-            # Pass free-text summaries directly to Python, never through make's shell expansion.
-            command = [
-                sys.executable,
-                "tools/update_document_metadata.py",
-                "--module",
-                module,
-                "--version",
-                version,
-                "--update-history",
-            ]
-            if change_type:
-                command += ["--change-type", change_type, "--summary", summary]
+        if change_type:
+            command += ["--change-type", change_type, "--summary", summary]
         env = os.environ.copy()
-        for key in ("MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS", "MAKEFILES"):
-            env.pop(key, None)
+        # Bind imports and runtime locations to this loaded package and workspace.
+        import_root = str(Path(__file__).resolve().parent.parent)
+        other_paths = [
+            item
+            for item in env.get("PYTHONPATH", "").split(os.pathsep)
+            if item and item != import_root
+        ]
         env.update(
+            PYTHONPATH=os.pathsep.join([import_root, *other_paths]),
+            PYTHONSAFEPATH="1",
+            PYTHONDONTWRITEBYTECODE="1",
+            SPEC_GENERATOR_WORKSPACE=str(workspace),
+            SPEC_GENERATOR_PYTHON=sys.executable,
             XIANGSHAN_ROOT=str(workspace / "third_party/XiangShan"),
-            TEMPLATE_GENERATE_CACHE=str(workspace / ".cache"),
-            PYTHONPYCACHEPREFIX=str(workspace / ".cache/python"),
+            SPEC_GENERATOR_CACHE=str(workspace / ".cache"),
         )
         started = time.monotonic()
         timed_out = False
@@ -272,7 +262,7 @@ class SpecGeneratorCommand(UCTool):
                 "ok": False,
                 "error_code": "COMMAND_UNAVAILABLE",
                 "error": str(exc),
-                "next_action": "Check make/Python availability and repository file permissions, then retry.",
+                "next_action": "Check Python/Bash availability and the named input or file permission, then retry.",
             }
         result = {
             "ok": not timed_out and process.returncode == 0,

@@ -1,0 +1,35 @@
+name: plugin-validation
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  validate:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install plugin and test tools
+        run: python -m pip install -e '.[dev]'
+      - name: Validate repository-owned files
+        run: make repo-lint
+      - name: Validate source plugin and runtime
+        run: |
+          make plugin-check
+          make test
+      - name: Render template diagrams
+        run: make template-check
+      - name: Build distributions and validate installed plugin
+        run: |
+          python -m build
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          ucagent --validate-plugin xiangshan-spec-generator
+          python -m pytest -q -o pythonpath=''

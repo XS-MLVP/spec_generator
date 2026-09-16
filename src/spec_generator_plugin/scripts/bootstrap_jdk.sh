@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CACHE_ROOT=${TEMPLATE_GENERATE_CACHE:-"$ROOT/.cache"}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${SPEC_GENERATOR_WORKSPACE:-"$PWD"}
+PYTHON=${SPEC_GENERATOR_PYTHON:-python3}
+CACHE_ROOT=${SPEC_GENERATOR_CACHE:-"$ROOT/.cache"}
 
 if [[ -n "${JAVA_HOME:-}" && -x "$JAVA_HOME/bin/java" ]] && "$JAVA_HOME/bin/java" -version >/dev/null 2>&1; then
   printf '%s\n' "$JAVA_HOME"
@@ -12,7 +14,7 @@ fi
 if command -v java >/dev/null 2>&1; then
   java_bin=$(command -v java)
   if command -v python3 >/dev/null 2>&1; then
-    java_bin=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$java_bin")
+    java_bin=$("$PYTHON" -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$java_bin")
   fi
   java_home=$(cd "$(dirname "$java_bin")/.." 2>/dev/null && pwd || true)
   if [[ -x "$java_home/bin/java" ]] && "$java_home/bin/java" -version >/dev/null 2>&1; then

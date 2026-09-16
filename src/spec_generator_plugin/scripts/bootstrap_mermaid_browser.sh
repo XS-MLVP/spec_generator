@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CACHE_ROOT=${TEMPLATE_GENERATE_CACHE:-"$ROOT/.cache"}
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=${SPEC_GENERATOR_WORKSPACE:-"$PWD"}
+PYTHON=${SPEC_GENERATOR_PYTHON:-python3}
+CACHE_ROOT=${SPEC_GENERATOR_CACHE:-"$ROOT/.cache"}
 MERMAID_CLI_VERSION=${MERMAID_CLI_VERSION:-11.16.0}
 
 if [[ -n "${MERMAID_BROWSER_PATH:-}" && -x "$MERMAID_BROWSER_PATH" ]]; then
@@ -27,8 +29,8 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   done
 fi
 
-mmdc=$("$ROOT/tools/bootstrap_mermaid.sh")
-node_home=$("$ROOT/tools/bootstrap_node.sh")
+mmdc=$(bash "$SCRIPT_DIR/bootstrap_mermaid.sh")
+node_home=$(bash "$SCRIPT_DIR/bootstrap_node.sh")
 install_dir=$(cd "$(dirname "$mmdc")/../.." && pwd)
 puppeteer="$install_dir/node_modules/.bin/puppeteer"
 browser_cache="$install_dir/browser-cache"
@@ -38,7 +40,7 @@ if [[ ! -x "$puppeteer" ]]; then
 fi
 
 PATH="$node_home/bin:$PATH" PUPPETEER_CACHE_DIR="$browser_cache" "$puppeteer" browsers install chrome-headless-shell >&2
-browser=$(python3 - "$browser_cache" <<'PY'
+browser=$("$PYTHON" - "$browser_cache" <<'PY'
 from pathlib import Path
 import sys
 root = Path(sys.argv[1])

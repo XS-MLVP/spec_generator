@@ -1,35 +1,69 @@
-"""Final acceptance gates backed by the Spec Generator's strict validators."""
+"""Stage-local gates for template structure and evidence integrity."""
+
+from pathlib import Path
 
 from ucagent.checkers.base import Checker
 
-from .tools import SpecGeneratorCommand, SpecGeneratorCommandArgs
+from .documents import artifact_paths
+from .tools import SpecGeneratorCommandArgs
+from .validation import validate
 
 
 class SpecGeneratorArtifactsChecker(Checker):
-    """Re-run strict validation instead of trusting an agent-authored success claim."""
+    """Validate real evidence and current artifacts at each stage boundary."""
 
-    def __init__(self, module: str, version: str, run_lint: bool = True, **kwargs):
-        """Validate static parameters; defer workspace access until Check/Complete."""
+    def __init__(
+        self,
+        module: str,
+        version: str,
+        config: str = "DefaultConfig",
+        phase: str = "final",
+        **kwargs,
+    ):
+        """Store static inputs; inspect no workspace state during construction."""
         super().__init__()
-        SpecGeneratorCommandArgs(action="validate", module=module, version=version)
-        if not version or not isinstance(run_lint, bool):
-            raise ValueError("version is required and run_lint must be boolean")
-        self.module = module
-        self.version = version
-        self.run_lint = run_lint
-        self.cfg = kwargs.get("cfg")
+        SpecGeneratorCommandArgs(
+            action="validate", module=module, version=version, config=config
+        )
+        if not version or phase not in {"evidence", "draft", "final"}:
+            raise ValueError(
+                "version and a valid evidence/draft/final phase are required"
+            )
+        self.module, self.version, self.config, self.phase = (
+            module,
+            version,
+            config,
+            phase,
+        )
+
+    def on_init(self):
+        """Register newly generated references when their consuming stage becomes active."""
+        root = Path(self.workspace)
+        if self.phase == "draft":
+            files = [
+                f"evidence/{self.module}/{self.version}/{name}"
+                for name in ("manifest.json", "ports.csv", f"{self.module}.sv")
+            ]
+        elif self.phase == "final":
+            files = [
+                str(path.relative_to(root))
+                for path in artifact_paths(root, self.module, self.version)[:2]
+            ]
+        else:
+            files = []
+        if self.stage is not None:
+            for name in files:
+                if (root / name).is_file():
+                    self.stage.add_reference_files([name])
+        return super().on_init()
 
     def do_check(self, is_complete: bool = False, **kwargs) -> tuple[bool, dict]:
-        """Run fresh strict document validation, including Mermaid rendering for final lint."""
-        cfg = self.cfg
-        runner = SpecGeneratorCommand(
-            workspace=self.workspace,
-            write_dirs=list(cfg.write_dirs) if cfg is not None else [],
-            un_write_dirs=list(cfg.un_write_dirs) if cfg is not None else [],
-        )
-        result = runner._run(
-            action="lint" if self.run_lint else "validate",
-            module=self.module,
-            version=self.version,
+        """Revalidate source, evidence and artifacts; no generation or rewriting occurs during Check."""
+        result = validate(
+            Path(self.workspace).resolve(),
+            self.module,
+            self.version,
+            self.config,
+            self.phase,
         )
         return result["ok"], result

@@ -21,6 +21,7 @@ def get_plugin() -> Plugin:
         ),
         root=root,
         requires_ucagent=">=0.9.1",
+        python_requirements=("markdown-it-py>=3,<5",),
         command_requirements=(
             CommandRequirement(name="GNU Make", alternatives=("make",)),
         ),
@@ -31,11 +32,6 @@ def get_plugin() -> Plugin:
                 name="design-document",
                 config_file=root / "resources" / "workflows" / "design-document.yaml",
                 guide_doc_paths=(root / "resources" / "Guide_Doc",),
-                template_dir=(
-                    root / "resources" / "templates" / "chip-design-document"
-                ),
-                template_target="{OUT}",
-                skill_paths=(root / "resources" / "skills",),
             ),
         ),
     )

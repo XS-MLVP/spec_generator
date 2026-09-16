@@ -1,0 +1,7 @@
+{
+  "template_version": ["使用模板版本", "使用模板"],
+  "xiangshan_commit": ["XiangShan RTL 基线", "XiangShan commit"],
+  "config": ["适用配置"],
+  "generation_status": ["RTL 生成状态"],
+  "date": ["生成日期", "日期"]
+}

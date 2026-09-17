@@ -18,8 +18,7 @@ write_dirs:
 un_write_dirs:
   - "{GUIDE_DOC}"
   - "inputs"
-  - "tools"
-  - "src"
+  - "spec_generator_plugin"
   - ".ucagent/.spec_generator_receipt_key"
   - "third_party/XiangShan/src/main/scala"
 

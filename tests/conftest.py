@@ -97,7 +97,7 @@ def command(workspace):
             ".cache",
             "third_party/XiangShan",
         ],
-        un_write_dirs=[".ucagent", "src", "tools"],
+        un_write_dirs=[".ucagent", "spec_generator_plugin"],
     )
 
 

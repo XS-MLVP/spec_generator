@@ -7,16 +7,18 @@ on:
 jobs:
   validate:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install UCAgent from the verified source revision
+        # UCAgent is not published on PyPI; satisfy the plugin dependency first.
+        run: python -m pip install 'UCAgent @ git+https://github.com/XS-MLVP/UCAgent.git@856ee9f9fd68cac09bda2f6495c55d96c6857038'
       - name: Install plugin and test tools
         run: python -m pip install -e '.[dev]'
       - name: Validate repository-owned files
@@ -32,4 +34,4 @@ jobs:
           python -m build
           python -m pip install --force-reinstall --no-deps dist/*.whl
           ucagent --validate-plugin xiangshan-spec-generator
-          python -m pytest -q -o pythonpath=''
+          python -I -m pytest -q --import-mode=append -o pythonpath=''

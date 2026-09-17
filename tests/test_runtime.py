@@ -16,7 +16,7 @@ from spec_generator_plugin.validation import validate
 
 def test_full_pipeline_and_cache(artifacts, command):
     """Packaged scripts work without workspace implementations and reuse only signed RTL."""
-    assert not (artifacts / "tools").exists()
+    assert not (artifacts / "spec_generator_plugin").exists()
     assert not (artifacts / "Makefile").exists()
     assert (artifacts / ".cache/compiler-calls").read_text() == "1"
     for version in ("v1.0.0", "v1.0.1"):
@@ -250,12 +250,15 @@ def test_fresh_agent_stages(workspace, command, monkeypatch, enabled):
     from spec_generator_plugin.plugin import get_plugin
 
     project = Path(__file__).resolve().parents[1]
-    selector = (
-        str(project)
-        if get_plugin().root.is_relative_to(project / "src")
-        else "xiangshan-spec-generator"
-    )
-    loaded = load_plugin(selector, check_dependencies=False)
+    if get_plugin().root == project / "spec_generator_plugin":
+        if enabled:
+            # Exercise source discovery as it works before the distribution is installed.
+            monkeypatch.setattr("ucagent.plugins._entry_points", lambda: [])
+            loaded = load_plugin("xiangshan-spec-generator", search_paths=[project])
+        else:
+            loaded = load_plugin(str(project))
+    else:
+        loaded = load_plugin("xiangshan-spec-generator")
     selected = resolve_plugin_workflow(
         [loaded], "xiangshan-spec-generator:design-document"
     )

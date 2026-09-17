@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate plugin-owned documentation, its canonical template, and package metadata."""
+"""Check source-repository links, template resources, and packaging from the project root."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import tomllib
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path.cwd()
 EXCLUDED_PARTS = {
     ".git",
     ".cache",
@@ -34,6 +34,9 @@ def is_repository_owned(path: Path) -> bool:
 
 def main() -> int:
     """Report broken source links and missing or inconsistent plugin resources."""
+    if not all((ROOT / name).is_file() for name in ("pyproject.toml", "ucagent-plugin.toml")):
+        print("ERROR: Run make repo-lint from the Spec Generator project root.", file=sys.stderr)
+        return 1
     errors: list[str] = []
     markdown_files = [path for path in ROOT.rglob("*.md") if is_repository_owned(path)]
     for source in markdown_files:
@@ -54,7 +57,7 @@ def main() -> int:
                         f"line out of range: {source.relative_to(ROOT)} -> {raw}"
                     )
 
-    resources = ROOT / "src/spec_generator_plugin/resources"
+    resources = ROOT / "spec_generator_plugin/resources"
     template = (
         resources / "Guide_Doc/chip_design_document_template_zh.md"
     )

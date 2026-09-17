@@ -1,4 +1,4 @@
-PLUGIN := src/spec_generator_plugin
+PLUGIN := spec_generator_plugin
 TEMPLATE := $(PLUGIN)/resources/Guide_Doc/chip_design_document_template_zh.md
 
 .PHONY: init repo-lint template-check plugin-check test
@@ -8,11 +8,11 @@ init:
 
 repo-lint:
 	@for script in $(PLUGIN)/scripts/*.sh; do bash -n "$$script" || exit; done
-	python3 -m compileall -q $(PLUGIN) tools tests
-	python3 tools/validate_repository.py
+	python3 -m compileall -q $(PLUGIN) tests
+	python3 -m spec_generator_plugin.repository
 
 template-check:
-	PYTHONPATH=src python3 -m spec_generator_plugin.rendering --document "$(TEMPLATE)" --output-dir .cache/mermaid-check/template
+	python3 -m spec_generator_plugin.rendering --document "$(TEMPLATE)" --output-dir .cache/mermaid-check/template
 
 plugin-check:
 	ucagent --validate-plugin .

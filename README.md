@@ -12,15 +12,23 @@
 
 ## 获取与准备
 
-需要 Python 3.11+ 和支持插件工作流的 UCAgent；在 UCAgent 使用的 Python 环境中安装本插件及其依赖。模型或外部后端按 UCAgent 的常规方式配置。
+需要 Python 3.11+ 和支持插件工作流的 UCAgent；在 UCAgent 使用的同一个 Python 环境中安装本插件及其依赖。模型或外部后端按 UCAgent 的常规方式配置。
+
+CI 使用下面的固定 UCAgent 源码提交验证。新环境先安装该版本；已有兼容 UCAgent 的环境可跳过：
 
 ```bash
-git clone --recurse-submodules git@github.com:XS-MLVP/spec_generator.git
+python -m pip install 'UCAgent @ git+https://github.com/XS-MLVP/UCAgent.git@856ee9f9fd68cac09bda2f6495c55d96c6857038'
+```
+
+获取插件源码并安装：
+
+```bash
+git clone --recurse-submodules https://github.com/XS-MLVP/spec_generator.git
 cd spec_generator
 python -m pip install -e .
 ```
 
-已有 clone 执行 `make init` 补齐 XiangShan 子模块。本文命令均从仓库根目录运行。
+已有 clone 执行 `make init` 补齐 XiangShan 子模块。下面的源码启动命令从仓库根目录运行；仅开发插件和运行单元测试时可省略子模块下载。
 插件自带执行代码；工作区只需提供 `third_party/XiangShan/` 源码和输入/输出目录。
 JDK、Mill、Node.js、Mermaid 等证据工具的准备方法见 [环境准备](#环境准备)。
 
@@ -44,13 +52,14 @@ ucagent . Sbuffer \
 将 `Sbuffer` 替换为实际模块名。首次版本默认 `v1.0.0`，配置默认 `DefaultConfig`；已有归档时选择更高的新版本。
 新任务使用 `--no-history`；恢复当前未完成任务时保留同一版本并省略该选项。
 
-安装后也可用插件 ID 加载：
+安装后 UCAgent 通过 `ucagent.plugins` entry point 发现插件；发行包名为 `ucagent-xiangshan-spec-generator`，CLI 使用插件 ID `xiangshan-spec-generator`：
 
 ```bash
+ucagent --list-plugins
 ucagent --validate-plugin xiangshan-spec-generator
 ```
 
-启动命令中的 `--plugin .` 相应替换为 `--plugin xiangshan-spec-generator`，第一个位置参数可改为独立工作区路径，并将 XiangShan clone（含子模块）放到该工作区的 `third_party/XiangShan/`。
+启动命令中的 `--plugin .` 相应替换为 `--plugin xiangshan-spec-generator`，第一个位置参数可改为独立工作区路径，并将 XiangShan clone（含子模块）放到该工作区的 `third_party/XiangShan/`。安装 wheel 后也使用这一入口。安装只提供插件发现信息，生成任务仍需显式选择 `--plugin` 和 `--plugin-workflow`。
 
 ## 生成产物
 
@@ -65,12 +74,12 @@ evidence/<Module>/vX.Y.Z/diagrams/manifest.json
 evidence/<Module>/vX.Y.Z/diagrams/*.svg
 ```
 
-这些是本地工作资产，已被 Git 忽略；长期保存请使用项目外的制品库或评审系统。
+仓库根目录中的这些本地工作资产由 `.gitignore` 忽略；独立工作区需自行配置忽略规则。长期保存请使用项目外的制品库或评审系统。
 质量报告必须如实记录 `OPEN-*`、RTL 状态及尚未执行的 SVA/formal 检查。
 
 ## 环境准备
 
-插件支持 Linux 和 macOS。UCAgent 运行环境需要 Python 3.11+，证据脚本需要 Git、Curl、Make 和 C compiler。JDK 17、Node.js 22、Mermaid CLI 和 headless browser 若未安装，会按固定版本下载到 `.cache/`；生产或 CI 环境仍建议按组织规范预装并缓存这些工具。
+插件面向 Linux 和 macOS，激活时检查 Bash、Git、Curl 和 Make；生成环境还需要 C compiler。JDK 17 和浏览器优先复用可用安装，否则下载到 `.cache/`；Node.js 22 和 Mermaid CLI 使用缓存中的固定版本，Mill 版本由 XiangShan 源码指定。首次准备工具需要网络访问。
 
 完成环境准备后，在仓库根目录执行 `make init` 初始化子模块，启动后调用 `SpecGeneratorCommand(action="preflight", module="<Module>", config="<Config>")` 检查环境。
 环境就绪后，按[启动工作流](#启动工作流)中的命令运行。
@@ -104,24 +113,13 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
 
 不要求安装 GNU `time`。本项目的 RTL wrapper 直接调用 XiangShan 的 Mill entry，并保留 XiangShan 的生成参数。Apple Silicon 和 Intel macOS 都会按主机架构构建 native Espresso。
 
-### 可选容器预检
-
-Docker/Podman 可用于证据工具环境预检：
-
-```bash
-docker compose -f tools/container/compose.yaml build
-docker compose -f tools/container/compose.yaml run --rm docs bash src/spec_generator_plugin/scripts/preflight.sh --module Sbuffer --strict
-```
-
-镜像基于固定 OCI digest 的多架构 Temurin JDK 17；Mill 和 Espresso 由项目脚本按 XiangShan pin 与容器架构准备。该镜像只提供证据工具环境，UCAgent 插件在宿主机的 Python 3.11+ 环境启动。
-
 ## 配置与工作区
 
 | 配置 | 默认值 | 用途 |
 | --- | --- | --- |
 | `SPEC_DOCUMENT_VERSION` | `v1.0.0` | 本次文档版本 |
 | `XIANGSHAN_CONFIG` | `DefaultConfig` | XiangShan 配置 class |
-| `--output` | 启动时设为 `outputs/<Module>` | UCAgent 输出与历史管理目录 |
+| `--output` | 启动时设为 `outputs/<Module>` | UCAgent 输出与历史管理目录；插件文档路径仍固定为生成产物表中的路径 |
 
 可用 `--override template_overwrite.VERSION=v1.1.0` 和
 `--override template_overwrite.XS_CONFIG=DefaultConfig` 覆盖前两个值。
@@ -164,8 +162,10 @@ Makefile 只保留源码维护检查；文档任务由 UCAgent 工作流和插�
 
 ## 运行资源
 
-完整生成方法保存在包内 `resources/Guide_Doc/generation-guide.md`，启动时复制到工作区的 `Guide_Doc/generation-guide.md`。
+选中 `design-document` 工作流后，包内 `resources/Guide_Doc/generation-guide.md` 复制到工作区的 `Guide_Doc/generation-guide.md`，提供完整生成方法。
 唯一模板保存在包内 `resources/Guide_Doc/chip_design_document_template_zh.md`，复制为工作区的同名 Guide_Doc 文件。工作流显式关闭通用输出模板，不再额外复制一份空白骨架。指南说明分析方法，模板定义设计文档结构；两者共同指导写作。
+
+插件未声明 Skill，Skill 开关不影响工作流的任务和验收要求。
 
 ## 故障排查
 
@@ -178,19 +178,20 @@ Makefile 只保留源码维护检查；文档任务由 UCAgent 工作流和插�
 | Mermaid 或端口检查失败 | 根据具体图号、端口名与位宽修复文档，再重新渲染及检查 |
 | 标题、顺序或表格数量不符 | 对照诊断给出的章节和模板，恢复固定结构；不要改检查器或复制无关表格凑数 |
 | 插件模板缺失 | 恢复包内资源或重新安装插件 |
+| 找不到插件或出现同名来源冲突 | 确认 pip 与 ucagent 使用同一 Python 环境；调试源码时用 `--plugin /绝对路径/spec_generator`，避免同时通过搜索路径和安装入口选择同一 ID |
 | 仍有 OPEN 项 | 补充所需证据或设计确认，不猜测关闭 |
 
 ## 项目结构
 
-保留 `src/spec_generator_plugin/`。`src/` 不是 UCAgent 的硬性要求，但它把可安装插件包与仓库维护文件、测试和本地产物分开；从源码根目录运行时也不会因当前目录恰好存在同名包而掩盖安装包缺文件的问题。移到根目录只能减少一层路径，仍需保留 `spec_generator_plugin/` 包及其相对导入，因此这里不迁移。
+插件代码直接放在根目录的 `spec_generator_plugin/` 包中。该目录对应插件入口 `spec_generator_plugin.plugin:get_plugin`，集中保存 Python 模块、执行脚本、资源和仓库检查工具；回归测试放在 `tests/`。源码加载使用项目根目录作为 Python 导入路径，安装包测试采用隔离导入，避免误用仓库中的源码。
 
 ```text
 README.md                             # 使用说明与模块职责
 CONTRIBUTING.md                       # 维护、测试、发布约定
-ucagent-plugin.toml                   # 源码入口，python_path = "src"
+ucagent-plugin.toml                   # 源码入口，python_path = "."
 pyproject.toml                       # Python 安装入口、依赖与资源打包
 Makefile                             # 维护检查
-src/spec_generator_plugin/
+spec_generator_plugin/
   __init__.py                        # 包与版本
   plugin.py                          # UCAgent 插件声明
   tools.py                           # 模型调用入口
@@ -200,25 +201,25 @@ src/spec_generator_plugin/
   documents.py                       # Markdown、模板结构与事实元数据
   validation.py                      # 产物一致性验收
   rendering.py                       # Mermaid 实际渲染
+  repository.py                      # 开发维护：仓库文档与打包声明检查
   resources/
     workflows/design-document.yaml
     Guide_Doc/generation-guide.md
     Guide_Doc/chip_design_document_template_zh.md
     metadata-fields.json
   scripts/                           # Bash：环境准备、工具安装和 RTL 编译
-tools/
-  validate_repository.py             # 仓库文档链接与打包清单检查
-  container/                         # 可选的容器预检环境
 tests/                               # 回归测试与完整文档样例
-references/                          # 可选的方法参考资料，不打包
+  fixtures/design_document.md        # 合成 RTL 的完整文档测试样例
 third_party/XiangShan/                # 输入源码子模块
 ```
 
 运行时按需创建 `Guide_Doc/`、`.ucagent/`、`.cache/` 和模块产物目录；这些不是维护源文件。
 
+`tests/fixtures/design_document.md` 是与测试用合成 RTL 对应的完整文档，用于检查标题、章节、表格、引用以及阶段验收。Guide_Doc 中的模板定义结构，指南说明写作方法；测试样例独立填写，结构相符但内容服务于测试。样例随测试进入源码包，不进入 wheel，也不会复制到用户工作区。模板结构变更时需同步审阅样例，不能从模板自动生成样例来代替独立验证。
+
 ### Python 文件职责
 
-以下路径均相对于 `src/spec_generator_plugin/`。这些文件共同组成一个插件；通常通过 UCAgent 的工具和阶段运行，无需逐个执行。
+以下路径均相对于 `spec_generator_plugin/`。这些文件共同组成一个插件；通常通过 UCAgent 的工具和阶段运行，无需逐个执行。
 
 | 文件 | 职责与调用关系 |
 | --- | --- |
@@ -231,6 +232,7 @@ third_party/XiangShan/                # 输入源码子模块
 | `documents.py` | 解析 Markdown 标题、表格和代码块，从模板提取结构要求，管理版本化文件路径，读取模板版本并同步事实元数据/历史记录。 |
 | `validation.py` | 组合证据、模板结构、元数据、引用、端口声明和图形检查，向工具及 Checker 返回有限长度的可操作诊断。 |
 | `rendering.py` | 调用 Node/Mermaid CLI/浏览器生成 SVG 和图形清单；维护命令 `make template-check` 也使用此实现。 |
+| `repository.py` | 开发维护入口，检查当前源码仓库的文档链接、模板资源和打包声明。在项目根目录执行 `make repo-lint` 或 `python -m spec_generator_plugin.repository`。 |
 
 主要调用关系：`SpecGeneratorCommand → runtime → evidence / documents / rendering / validation`；`Check / Complete → checkers → validation`。Bash 脚本只负责外部工具与编译环境，Python 负责产物和工作区约束。
 

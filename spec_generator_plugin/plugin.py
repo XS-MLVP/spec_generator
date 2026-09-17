@@ -23,6 +23,9 @@ def get_plugin() -> Plugin:
         requires_ucagent=">=0.9.1",
         python_requirements=("markdown-it-py>=3,<5",),
         command_requirements=(
+            CommandRequirement(name="Bash", alternatives=("bash",)),
+            CommandRequirement(name="Git", alternatives=("git",)),
+            CommandRequirement(name="Curl", alternatives=("curl",)),
             CommandRequirement(name="GNU Make", alternatives=("make",)),
         ),
         tool_factories=(create_tools,),

@@ -126,7 +126,7 @@ The generated document must not contain template directive comments or unreplace
 
 ## Coverage Practice Principles
 
-The repository may contain selected examples under `references/`. They are writing and methodology references, never implementation evidence. The Coverage Cookbook is not a Spec template; absorb these general lessons without copying its APB, UART, datapath, or SoC chapter structure:
+Apply the following coverage planning principles to the current module:
 
 - Define one short, positive, unambiguous coverage requirement before choosing its implementation.
 - For every `COV-*`, state the observation event, valid and invalid sampling conditions, important values or ranges, dependencies/crosses, illegal or ignored combinations, and closure artifact.

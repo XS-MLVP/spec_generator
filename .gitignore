@@ -3,55 +3,47 @@
 Thumbs.db
 Desktop.ini
 
-# Reproducible local tool/bootstrap and RTL caches.
-.cache/
-.tmp/
-tmp/
-
-# User-provided module inputs and generated module artifacts stay local.
-inputs/*
-outputs/*
-evidence/*
-reports/*
-
-# XiangShan generated products stay inside the submodule.
-third_party/XiangShan/build/
-third_party/XiangShan/out/
+# Workspace assets and runtime state (repository root only).
+/inputs/
+/outputs/
+/evidence/
+/reports/
+/Guide_Doc/
+/.ucagent/
+/.cache/
+/.tmp/
+/tmp/
+/log/
+/*.log
+/*.log.*
+/*.tmp
 
 # Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-.venv/
-venv/
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+/.coverage
+/.coverage.*
+/coverage.xml
+/htmlcov/
+/.venv/
+/venv/
 
-# UCAgent runtime state and Python plugin builds.
-.ucagent/
-/Guide_Doc/
-build/
-dist/
+# Python distributions and editable-install metadata.
+/build/
+/dist/
 *.egg-info/
 
-# Node.js
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
 # Editors and local IDE state
-.idea/
-.vscode/
+/.idea/
+/.vscode/
 *.swp
 *.swo
-*.tmp
 *~
 
-# Logs and local environment overrides
-*.log
-.env
-.env.*
-!.env.example
+# Local environment overrides; keep a shareable example trackable.
+/.env
+/.env.*
+!/.env.example

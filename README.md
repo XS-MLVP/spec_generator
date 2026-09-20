@@ -15,6 +15,8 @@
 
 在 UCAgent 使用的同一 Python 环境中安装。已有兼容 UCAgent 时可跳过第一条命令；下面是 CI 验证的版本：
 
+macOS 安装前先执行 `export ARCHFLAGS="-arch $(uname -m)"`，使 wavekit 扩展仅按当前机器架构编译，避免 universal2 与 `-march=native` 冲突。
+
 ```bash
 python -m pip install 'UCAgent @ git+https://github.com/XS-MLVP/UCAgent.git@856ee9f9fd68cac09bda2f6495c55d96c6857038'
 git clone --recurse-submodules https://github.com/XS-MLVP/spec_generator.git

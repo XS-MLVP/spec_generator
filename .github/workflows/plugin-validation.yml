@@ -16,6 +16,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Use the native architecture for macOS builds
+        if: runner.os == 'macOS'
+        # wavekit uses -march=native, which cannot target both universal2 architectures.
+        run: printf 'ARCHFLAGS=-arch %s\n' "$(uname -m)" >> "$GITHUB_ENV"
       - name: Install UCAgent from the verified source revision
         # UCAgent is not published on PyPI; satisfy the plugin dependency first.
         run: python -m pip install 'UCAgent @ git+https://github.com/XS-MLVP/UCAgent.git@856ee9f9fd68cac09bda2f6495c55d96c6857038'

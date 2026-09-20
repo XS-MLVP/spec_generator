@@ -1,15 +1,28 @@
 """Focused tests for the Spec Generator UCAgent plugin descriptor."""
 
+from dataclasses import replace
 from pathlib import Path
 import shutil
+import subprocess
 import tomllib
 
 import pytest
 
 from spec_generator_plugin.plugin import get_plugin
+from spec_generator_plugin.checkers import SpecGeneratorArtifactsChecker
 from spec_generator_plugin.tools import SpecGeneratorCommand, create_tools
-from ucagent.plugins import PluginContext, PluginError, validate_plugin
+from ucagent.plugins import (
+    LoadedPlugin,
+    PluginContext,
+    PluginError,
+    collect_plugin_resources,
+    create_plugin_checker_registry,
+    create_plugin_tools,
+    resolve_plugin_workflow,
+    validate_plugin,
+)
 from ucagent.tools.uctool import to_fastmcp
+from ucagent.util.functions import get_tools_from_cfg
 
 
 def test_plugin_descriptor_validates() -> None:
@@ -23,6 +36,7 @@ def test_plugin_descriptor_validates() -> None:
     root = Path(__file__).resolve().parents[1]
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
     manifest = tomllib.loads((root / "ucagent-plugin.toml").read_text())
+    assert (root / manifest["python_path"] / "spec_generator_plugin/plugin.py").is_file()
     assert plugin.version == project["version"]
     assert plugin.name == manifest["name"]
     assert project["entry-points"]["ucagent.plugins"][plugin.name] == manifest["entry"]
@@ -96,3 +110,70 @@ def test_factory_preserves_resolved_workspace_policy(tmp_path):
     assert tool.write_dirs == list(context.write_dirs)
     assert tool.un_write_dirs == list(context.un_write_dirs)
     assert tool._run("preflight", "Sbuffer")["error_code"] == "WRITE_POLICY_DENIED"
+
+
+@pytest.mark.parametrize("failure", ["exit", "empty", "timeout"])
+def test_broken_command_version_fails_at_activation(monkeypatch, failure):
+    """An executable without a working version probe is rejected before use."""
+    real_run = subprocess.run
+
+    def probe(args, **kwargs):
+        """Break only the Git version probe, preserving other command checks."""
+        if Path(args[0]).name == "git" and args[1:] == ["--version"]:
+            if failure == "timeout":
+                raise subprocess.TimeoutExpired(args, 10)
+            return subprocess.CompletedProcess(args, 1 if failure == "exit" else 0, "", "")
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr("ucagent.plugins.subprocess.run", probe)
+    with pytest.raises(PluginError, match="(query Git version|working Git version command)"):
+        validate_plugin(get_plugin(), check_dependencies=True)
+
+
+@pytest.mark.parametrize(
+    "policy,expected",
+    [
+        ({"selected_tools": ["SpecGeneratorCommand"]}, ["SpecGeneratorCommand"]),
+        ({"selected_tools": ["ReadTextFile"]}, []),
+        ({"ignore_tools": ["Spec*"]}, []),
+        ({"selected_tools": ["SpecGeneratorCommand"], "ignore_tools": ["Spec*"]}, []),
+    ],
+)
+def test_registered_tool_obeys_agent_and_mcp_filters(tmp_path, policy, expected):
+    """The factory's tool respects selection and ignore precedence before MCP export."""
+    plugin = get_plugin()
+    loaded = LoadedPlugin(plugin, plugin.name, "test")
+    context = PluginContext(tmp_path, "outputs", ("outputs",), (), None, plugin.root)
+    tools = get_tools_from_cfg(create_plugin_tools([loaded], context), policy)
+    assert [tool.name for tool in tools] == expected
+    assert [to_fastmcp(tool).name for tool in tools] == expected
+
+
+def test_checker_registration_rejects_conflicts_without_global_mutation(monkeypatch):
+    """Short names resolve locally and reject both plugin and core collisions."""
+    import ucagent.checkers as core_checkers
+
+    plugin = get_plugin()
+    loaded = LoadedPlugin(plugin, plugin.name, "test")
+    name = "SpecGeneratorArtifactsChecker"
+    assert not hasattr(core_checkers, name)
+    assert create_plugin_checker_registry([loaded]) == {name: SpecGeneratorArtifactsChecker}
+    assert not hasattr(core_checkers, name)
+    other = LoadedPlugin(replace(plugin, name="another-plugin"), "another-plugin", "test")
+    with pytest.raises(PluginError, match="Duplicate plugin Checker name"):
+        create_plugin_checker_registry([loaded, other])
+    monkeypatch.setattr(core_checkers, name, SpecGeneratorArtifactsChecker, raising=False)
+    with pytest.raises(PluginError, match="conflicts with a core Checker"):
+        create_plugin_checker_registry([loaded])
+
+
+def test_workflow_resources_are_opt_in():
+    """Using plugin tools or checkers alone must not activate the document workflow."""
+    plugin = validate_plugin(get_plugin(), check_dependencies=False)
+    loaded = LoadedPlugin(plugin, plugin.name, "test")
+    assert collect_plugin_resources([loaded], None) == ([], [])
+    selected = resolve_plugin_workflow([loaded], f"{plugin.name}:design-document")
+    docs, skills = collect_plugin_resources([loaded], selected)
+    assert docs == list(plugin.workflows[0].guide_doc_paths)
+    assert skills == []
+    assert create_plugin_checker_registry([loaded])["SpecGeneratorArtifactsChecker"] is SpecGeneratorArtifactsChecker

@@ -1,5 +1,6 @@
-PLUGIN := spec_generator_plugin
-TEMPLATE := $(PLUGIN)/resources/Guide_Doc/chip_design_document_template_zh.md
+PLUGIN := src/spec_generator_plugin
+export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
+TEMPLATE := $(PLUGIN)/Guide_Doc/chip_design_document_template_zh.md
 
 .PHONY: init repo-lint template-check plugin-check test
 

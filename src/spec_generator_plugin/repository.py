@@ -57,7 +57,7 @@ def main() -> int:
                         f"line out of range: {source.relative_to(ROOT)} -> {raw}"
                     )
 
-    resources = ROOT / "spec_generator_plugin/resources"
+    resources = ROOT / "src/spec_generator_plugin"
     template = (
         resources / "Guide_Doc/chip_design_document_template_zh.md"
     )

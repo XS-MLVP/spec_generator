@@ -19,7 +19,7 @@ Resolve all paths from the active workspace root:
 | Versioned RTL evidence | `evidence/<Module>/<version>/manifest.json`, `ports.csv`, and `<Module>.sv` |
 | Generation and validation | `SpecGeneratorCommand`, `Check`, `Complete` |
 
-Create the module-specific input, output, and report directories when needed. Do not put generated files at repository root. Do not modify XiangShan source merely to make documentation generation easier.
+Read optional module inputs without modifying them. Create the module-specific output and report directories when needed. Do not put generated files at repository root. Do not modify XiangShan source merely to make documentation generation easier.
 
 Module inputs and generated artifacts under `inputs/`, `outputs/`, `reports/<Module>/`, and `evidence/` are local user assets and are ignored by this tool repository. Generate and validate them normally, but do not stage or commit them. Users who need retention must archive them outside this repository.
 

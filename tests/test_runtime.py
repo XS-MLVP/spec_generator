@@ -16,7 +16,7 @@ from spec_generator_plugin.validation import validate
 
 def test_full_pipeline_and_cache(artifacts, command):
     """Packaged scripts work without workspace implementations and reuse only signed RTL."""
-    assert not (artifacts / "spec_generator_plugin").exists()
+    assert not (artifacts / "src").exists()
     assert not (artifacts / "Makefile").exists()
     assert (artifacts / ".cache/compiler-calls").read_text() == "1"
     for version in ("v1.0.0", "v1.0.1"):
@@ -250,7 +250,7 @@ def test_fresh_agent_stages(workspace, command, monkeypatch, enabled):
     from spec_generator_plugin.plugin import get_plugin
 
     project = Path(__file__).resolve().parents[1]
-    if get_plugin().root == project / "spec_generator_plugin":
+    if get_plugin().root == project / "src/spec_generator_plugin":
         if enabled:
             # Exercise source discovery as it works before the distribution is installed.
             monkeypatch.setattr("ucagent.plugins._entry_points", lambda: [])
@@ -284,11 +284,17 @@ def test_fresh_agent_stages(workspace, command, monkeypatch, enabled):
     )
     try:
         assert skills == []
+        tool_names = {tool.name for tool in agent.test_tools}
+        assert tool_names == set(agent.cfg.tools.selected_tools)
+        assert {"SpecGeneratorCommand", "Check", "Complete", "ReadTextFile"} <= tool_names
+        assert not {"RunBashCommand", "RunTestCases", "RunSkillScript"} & tool_names
         assert not (workspace / "rendered/chip_design_document_template_zh.md").exists()
         assert "ListSkill" not in agent.get_default_system_prompt()
         assert (workspace / ".ucagent/skills").exists() is enabled
         for index, stage in enumerate(agent.stage_manager.stages):
             assert agent.stage_manager.stage_index == index
+            assert "Guide_Doc/generation-guide.md" in stage.reference_files
+            assert "Guide_Doc/chip_design_document_template_zh.md" in stage.reference_files
             stage.need_pass_llm_suggestion = False
             for name in stage.reference_files:
                 agent.tool_read_text.invoke({"path": name})

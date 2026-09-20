@@ -23,18 +23,19 @@ def get_plugin() -> Plugin:
         requires_ucagent=">=0.9.1",
         python_requirements=("markdown-it-py>=3,<5",),
         command_requirements=(
-            CommandRequirement(name="Bash", alternatives=("bash",)),
-            CommandRequirement(name="Git", alternatives=("git",)),
-            CommandRequirement(name="Curl", alternatives=("curl",)),
-            CommandRequirement(name="GNU Make", alternatives=("make",)),
+            CommandRequirement(name="Bash", alternatives=("bash",), version_args=("--version",)),
+            CommandRequirement(name="Git", alternatives=("git",), version_args=("--version",)),
+            CommandRequirement(name="Curl", alternatives=("curl",), version_args=("--version",)),
+            CommandRequirement(name="GNU Make", alternatives=("make",), version_args=("--version",)),
         ),
         tool_factories=(create_tools,),
         checkers=(SpecGeneratorArtifactsChecker,),
+        assets=(root / "scripts",),
         workflows=(
             PluginWorkflow(
                 name="design-document",
-                config_file=root / "resources" / "workflows" / "design-document.yaml",
-                guide_doc_paths=(root / "resources" / "Guide_Doc",),
+                config_file=root / "workflows" / "design-document.yaml",
+                guide_doc_paths=(root / "Guide_Doc",),
             ),
         ),
     )

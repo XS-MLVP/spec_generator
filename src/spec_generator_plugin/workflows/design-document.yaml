@@ -6,6 +6,29 @@ template_overwrite:
 
 # Long RTL elaboration reports progress through SpecGeneratorCommand.
 call_time_out: 3660
+tools:
+  selected_tools:
+    - RoleInfo
+    - CurrentTips
+    - Status
+    - Detail
+    - StageJournal
+    - AllStageJournal
+    - SetCurrentStageJournal
+    - Check
+    - Complete
+    - KillCheck
+    - Exit
+    - PathList
+    - GetFileInfo
+    - FindFiles
+    - SearchText
+    - ReadTextFile
+    - CreateDirectory
+    - EditTextFile
+    - ReplaceStringInFile
+    - DeleteTextLines
+    - SpecGeneratorCommand
 write_dirs:
   - "{OUT}"
   - "outputs/{DUT}"
@@ -18,7 +41,7 @@ write_dirs:
 un_write_dirs:
   - "{GUIDE_DOC}"
   - "inputs"
-  - "spec_generator_plugin"
+  - "src"
   - ".ucagent/.spec_generator_receipt_key"
   - "third_party/XiangShan/src/main/scala"
 
@@ -63,6 +86,7 @@ stage:
       - "读取 evidence/{DUT}/{VERSION}/manifest.json、ports.csv 和生成的 RTL；确认模块、配置、commit 与当前源码匹配"
     reference_files:
       - "Guide_Doc/generation-guide.md"
+      - "Guide_Doc/chip_design_document_template_zh.md"
     output_files:
       - "evidence/{DUT}/{VERSION}/manifest.json"
       - "evidence/{DUT}/{VERSION}/ports.csv"
@@ -114,6 +138,7 @@ stage:
       - "将实际验证结果记录进质量报告；未运行 SVA 编译或 formal 的项目保持未签核，禁止虚构通过；最后调用 Complete"
     reference_files:
       - "Guide_Doc/generation-guide.md"
+      - "Guide_Doc/chip_design_document_template_zh.md"
       - "outputs/{DUT}/{DUT}_design_document_zh_{VERSION}.md"
     output_files:
       - "evidence/{DUT}/{VERSION}/diagrams/manifest.json"

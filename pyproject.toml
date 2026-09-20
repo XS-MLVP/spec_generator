@@ -16,19 +16,21 @@ dev = ["pytest>=8", "build>=1"]
 [project.entry-points."ucagent.plugins"]
 xiangshan-spec-generator = "spec_generator_plugin.plugin:get_plugin"
 
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["spec_generator_plugin"]
 namespaces = false
 
 [tool.setuptools.package-data]
 spec_generator_plugin = [
-  "resources/Guide_Doc/*.md",
+  "Guide_Doc/*.md",
   "scripts/*.sh",
-  "resources/*.json",
-  "resources/workflows/*.yaml",
+  "workflows/*.yaml",
 ]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src"]
 testpaths = ["tests"]

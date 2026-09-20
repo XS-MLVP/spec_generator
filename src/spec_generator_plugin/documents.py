@@ -10,11 +10,17 @@ from pathlib import Path
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
-from .evidence import read_json, validate_evidence
+from .evidence import validate_evidence
 
-RESOURCES = Path(__file__).resolve().parent / "resources"
-FIELDS = read_json(RESOURCES / "metadata-fields.json")
-TEMPLATE = RESOURCES / "Guide_Doc/chip_design_document_template_zh.md"
+# Visible table labels shared by metadata synchronization and validation.
+FIELDS = {
+    "template_version": ["使用模板版本", "使用模板"],
+    "xiangshan_commit": ["XiangShan RTL 基线", "XiangShan commit"],
+    "config": ["适用配置"],
+    "generation_status": ["RTL 生成状态"],
+    "date": ["生成日期", "日期"],
+}
+TEMPLATE = Path(__file__).resolve().parent / "Guide_Doc/chip_design_document_template_zh.md"
 MARKDOWN = MarkdownIt("commonmark").enable("table")
 METADATA_RE = re.compile(r"<!-- spec-generator: (.*?) -->", re.S)
 
